@@ -196,25 +196,4 @@ Published image names:
 - `ghcr.io/<owner>/apiwatch-backend`
 - `ghcr.io/<owner>/apiwatch-frontend`
 
-## Screenshots
 
-Add portfolio screenshots here after running the demo stack:
-
-- Dashboard overview
-- Service detail and latency history
-- Active incident view
-- Add service form
-
-## Future Improvements
-
-- Slack, email, and webhook notifications
-- Authentication and team workspaces
-- Public status pages
-- Retry and backoff policies
-- Prometheus and Grafana integration
-- Per-service schedules and maintenance windows
-- Distributed scheduler coordination for multiple backend replicas
-
-## Resume Bullet
-
-> Built APIWatch, a Spring Boot and PostgreSQL API monitoring platform that performs scheduled health checks, stores latency and uptime metrics, detects repeated failures, automatically creates and resolves incidents, and exposes a React operations dashboard.
