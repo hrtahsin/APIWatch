@@ -1,0 +1,23 @@
+apiwatch_project_blueprint_codex.md
+
+# Environment and secrets
+.env
+.env.local
+!.env.example
+
+# Java / Maven
+target/
+*.class
+
+# Node / Vite
+node_modules/
+dist/
+
+# IDE and OS files
+.idea/
+.vscode/
+.DS_Store
+
+# Logs and local data
+*.log
+apiwatch-postgres-data/

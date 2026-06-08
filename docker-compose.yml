@@ -1,0 +1,55 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: apiwatch-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-apiwatch}
+      POSTGRES_USER: ${POSTGRES_USER:-apiwatch}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-apiwatch}
+    ports:
+      - "5432:5432"
+    volumes:
+      - apiwatch-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-apiwatch} -d ${POSTGRES_DB:-apiwatch}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./apiwatch-backend
+    container_name: apiwatch-backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: ${SPRING_DATASOURCE_URL:-jdbc:postgresql://postgres:5432/apiwatch}
+      SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME:-apiwatch}
+      SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD:-apiwatch}
+      APIWATCH_SCHEDULER_ENABLED: ${APIWATCH_SCHEDULER_ENABLED:-true}
+      APIWATCH_SCHEDULER_INTERVAL_MS: ${APIWATCH_SCHEDULER_INTERVAL_MS:-60000}
+      APIWATCH_SCHEDULER_INITIAL_DELAY_MS: ${APIWATCH_SCHEDULER_INITIAL_DELAY_MS:-15000}
+      APIWATCH_FRONTEND_ORIGIN: ${APIWATCH_FRONTEND_ORIGIN:-http://localhost:5173}
+      APIWATCH_DEMO_DATA_ENABLED: ${APIWATCH_DEMO_DATA_ENABLED:-true}
+      APIWATCH_DEMO_BASE_URL: ${APIWATCH_DEMO_BASE_URL:-http://backend:8080}
+    ports:
+      - "8080:8080"
+
+  frontend:
+    build:
+      context: ./apiwatch-frontend
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8080/api}
+        VITE_DEMO_MODE: ${VITE_DEMO_MODE:-false}
+    container_name: apiwatch-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "5173:80"
+
+volumes:
+  apiwatch-postgres-data:
