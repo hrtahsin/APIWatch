@@ -1,0 +1,129 @@
+package com.hasan.apiwatch.service;
+
+import com.hasan.apiwatch.dto.IncidentResponse;
+import com.hasan.apiwatch.entity.HealthCheck;
+import com.hasan.apiwatch.entity.Incident;
+import com.hasan.apiwatch.entity.MonitoredService;
+import com.hasan.apiwatch.enums.HealthStatus;
+import com.hasan.apiwatch.enums.IncidentStatus;
+import com.hasan.apiwatch.exception.ResourceNotFoundException;
+import com.hasan.apiwatch.repository.HealthCheckRepository;
+import com.hasan.apiwatch.repository.IncidentRepository;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.Duration;
+import java.time.Instant;
+import java.util.List;
+
+@Service
+public class IncidentService {
+
+    private final IncidentRepository incidentRepository;
+    private final HealthCheckRepository healthCheckRepository;
+
+    public IncidentService(
+            IncidentRepository incidentRepository,
+            HealthCheckRepository healthCheckRepository
+    ) {
+        this.incidentRepository = incidentRepository;
+        this.healthCheckRepository = healthCheckRepository;
+    }
+
+    @Transactional
+    public void evaluate(MonitoredService service, HealthCheck latestCheck) {
+        if (latestCheck.getStatus() == HealthStatus.UP) {
+            incidentRepository
+                    .findFirstByMonitoredServiceIdAndStatus(service.getId(), IncidentStatus.ACTIVE)
+                    .ifPresent(this::resolveEntity);
+            return;
+        }
+
+        if (latestCheck.getStatus() != HealthStatus.DOWN) {
+            return;
+        }
+
+        int threshold = service.getFailureThreshold();
+        List<HealthCheck> recentChecks =
+                healthCheckRepository.findByMonitoredServiceIdOrderByCheckedAtDesc(
+                        service.getId(),
+                        PageRequest.of(0, threshold)
+                );
+        boolean thresholdReached = recentChecks.size() == threshold
+                && recentChecks.stream().allMatch(check -> check.getStatus() == HealthStatus.DOWN);
+
+        if (thresholdReached
+                && incidentRepository.findFirstByMonitoredServiceIdAndStatus(
+                        service.getId(),
+                        IncidentStatus.ACTIVE
+                ).isEmpty()) {
+            Incident incident = new Incident();
+            incident.setMonitoredService(service);
+            incident.setStatus(IncidentStatus.ACTIVE);
+            incident.setReason(threshold + " consecutive health checks failed");
+            incident.setStartedAt(recentChecks.get(recentChecks.size() - 1).getCheckedAt());
+            incidentRepository.save(incident);
+        }
+    }
+
+    @Transactional(readOnly = true)
+    public List<IncidentResponse> findAll(IncidentStatus status, Long serviceId) {
+        List<Incident> incidents;
+        if (status != null && serviceId != null) {
+            incidents = incidentRepository.findByMonitoredServiceIdAndStatusOrderByStartedAtDesc(
+                    serviceId,
+                    status
+            );
+        } else if (status != null) {
+            incidents = incidentRepository.findByStatusOrderByStartedAtDesc(status);
+        } else if (serviceId != null) {
+            incidents = incidentRepository.findByMonitoredServiceIdOrderByStartedAtDesc(serviceId);
+        } else {
+            incidents = incidentRepository.findAllByOrderByStartedAtDesc();
+        }
+        return incidents.stream().map(this::toResponse).toList();
+    }
+
+    @Transactional(readOnly = true)
+    public IncidentResponse findById(Long id) {
+        return toResponse(getEntity(id));
+    }
+
+    @Transactional
+    public IncidentResponse resolve(Long id) {
+        Incident incident = getEntity(id);
+        if (incident.getStatus() == IncidentStatus.ACTIVE) {
+            resolveEntity(incident);
+        }
+        return toResponse(incident);
+    }
+
+    private Incident getEntity(Long id) {
+        return incidentRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Incident " + id + " was not found"));
+    }
+
+    private void resolveEntity(Incident incident) {
+        Instant resolvedAt = Instant.now();
+        incident.setStatus(IncidentStatus.RESOLVED);
+        incident.setResolvedAt(resolvedAt);
+        incident.setDurationSeconds(Duration.between(incident.getStartedAt(), resolvedAt).toSeconds());
+        incidentRepository.save(incident);
+    }
+
+    private IncidentResponse toResponse(Incident incident) {
+        return new IncidentResponse(
+                incident.getId(),
+                incident.getMonitoredService().getId(),
+                incident.getMonitoredService().getName(),
+                incident.getStatus(),
+                incident.getReason(),
+                incident.getStartedAt(),
+                incident.getResolvedAt(),
+                incident.getDurationSeconds(),
+                incident.getCreatedAt(),
+                incident.getUpdatedAt()
+        );
+    }
+}
