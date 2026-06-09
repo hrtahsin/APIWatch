@@ -6,9 +6,11 @@ import com.hasan.apiwatch.entity.Incident;
 import com.hasan.apiwatch.entity.MonitoredService;
 import com.hasan.apiwatch.enums.HealthStatus;
 import com.hasan.apiwatch.enums.IncidentStatus;
+import com.hasan.apiwatch.event.IncidentNotificationEvent;
 import com.hasan.apiwatch.exception.ResourceNotFoundException;
 import com.hasan.apiwatch.repository.HealthCheckRepository;
 import com.hasan.apiwatch.repository.IncidentRepository;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,13 +24,16 @@ public class IncidentService {
 
     private final IncidentRepository incidentRepository;
     private final HealthCheckRepository healthCheckRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     public IncidentService(
             IncidentRepository incidentRepository,
-            HealthCheckRepository healthCheckRepository
+            HealthCheckRepository healthCheckRepository,
+            ApplicationEventPublisher eventPublisher
     ) {
         this.incidentRepository = incidentRepository;
         this.healthCheckRepository = healthCheckRepository;
+        this.eventPublisher = eventPublisher;
     }
 
     @Transactional
@@ -63,7 +68,8 @@ public class IncidentService {
             incident.setStatus(IncidentStatus.ACTIVE);
             incident.setReason(threshold + " consecutive health checks failed");
             incident.setStartedAt(recentChecks.get(recentChecks.size() - 1).getCheckedAt());
-            incidentRepository.save(incident);
+            Incident saved = incidentRepository.save(incident);
+            eventPublisher.publishEvent(IncidentNotificationEvent.opened(saved));
         }
     }
 
@@ -109,7 +115,8 @@ public class IncidentService {
         incident.setStatus(IncidentStatus.RESOLVED);
         incident.setResolvedAt(resolvedAt);
         incident.setDurationSeconds(Duration.between(incident.getStartedAt(), resolvedAt).toSeconds());
-        incidentRepository.save(incident);
+        Incident saved = incidentRepository.save(incident);
+        eventPublisher.publishEvent(IncidentNotificationEvent.resolved(saved));
     }
 
     private IncidentResponse toResponse(Incident incident) {
