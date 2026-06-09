@@ -1,30 +1,39 @@
 import { Plus, Search } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { getApiErrorMessage, getServices, setServiceActive } from '../api/client'
+import { getApiErrorMessage, getServicesPage, setServiceActive } from '../api/client'
 import { useAuth } from '../auth/useAuth'
+import { Pagination } from '../components/Pagination'
 import { ServiceTable } from '../components/ServiceTable'
 import type { MonitoredService } from '../types'
+
+const pageSize = 10
 
 export function ServicesPage() {
   const { canManage } = useAuth()
   const [services, setServices] = useState<MonitoredService[]>([])
   const [query, setQuery] = useState('')
+  const [page, setPage] = useState(0)
+  const [totalElements, setTotalElements] = useState(0)
+  const [totalPages, setTotalPages] = useState(0)
   const [loading, setLoading] = useState(true)
   const [updatingServiceId, setUpdatingServiceId] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    getServices()
+    setLoading(true)
+    getServicesPage(page, pageSize)
       .then((response) => {
-        setServices(response)
+        setServices(response.content)
+        setTotalElements(response.totalElements)
+        setTotalPages(response.totalPages)
         setError(null)
       })
       .catch((loadError) => {
         setError(getApiErrorMessage(loadError, 'Unable to load services'))
       })
       .finally(() => setLoading(false))
-  }, [])
+  }, [page])
 
   const filteredServices = useMemo(() => {
     const normalized = query.trim().toLowerCase()
@@ -75,7 +84,9 @@ export function ServicesPage() {
             placeholder="Search by name, URL, or status"
           />
         </label>
-        <span>{filteredServices.length} services</span>
+        <span>
+          {query ? `${filteredServices.length} matching this page` : `${totalElements} services`}
+        </span>
       </div>
       {error && <div className="notice danger">{error}</div>}
       {loading ? (
@@ -88,6 +99,12 @@ export function ServicesPage() {
           updatingServiceId={updatingServiceId}
         />
       )}
+      <Pagination
+        page={page}
+        totalPages={totalPages}
+        totalElements={totalElements}
+        onPageChange={setPage}
+      />
     </section>
   )
 }

@@ -1,6 +1,7 @@
 package com.hasan.apiwatch.controller;
 
 import com.hasan.apiwatch.dto.CreateServiceRequest;
+import com.hasan.apiwatch.dto.PageResponse;
 import com.hasan.apiwatch.dto.ServiceResponse;
 import com.hasan.apiwatch.dto.UpdateServiceActiveRequest;
 import com.hasan.apiwatch.dto.UpdateServiceRequest;
@@ -16,9 +17,8 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-
-import java.util.List;
 
 @RestController
 @RequestMapping("/api/services")
@@ -36,8 +36,11 @@ public class MonitoredServiceController {
     }
 
     @GetMapping
-    List<ServiceResponse> findAll() {
-        return serviceMonitorService.findAll();
+    PageResponse<ServiceResponse> findAll(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size
+    ) {
+        return serviceMonitorService.findAll(page, size);
     }
 
     @GetMapping("/{id}")

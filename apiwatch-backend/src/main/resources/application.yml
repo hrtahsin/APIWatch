@@ -24,6 +24,12 @@ apiwatch:
     enabled: ${APIWATCH_SCHEDULER_ENABLED:true}
     interval-ms: ${APIWATCH_SCHEDULER_INTERVAL_MS:5000}
     initial-delay-ms: ${APIWATCH_SCHEDULER_INITIAL_DELAY_MS:15000}
+  retention:
+    enabled: ${APIWATCH_RETENTION_ENABLED:true}
+    health-check-days: ${APIWATCH_RETENTION_HEALTH_CHECK_DAYS:90}
+    incident-days: ${APIWATCH_RETENTION_INCIDENT_DAYS:365}
+    notification-days: ${APIWATCH_RETENTION_NOTIFICATION_DAYS:90}
+    cron: ${APIWATCH_RETENTION_CRON:0 30 2 * * *}
   frontend-origin: ${APIWATCH_FRONTEND_ORIGIN:http://localhost:5173}
   secrets:
     encryption-key: ${APIWATCH_ENCRYPTION_KEY:YXBpd2F0Y2gtZGV2LWVuY3J5cHRpb24ta2V5LTMyYiE=}

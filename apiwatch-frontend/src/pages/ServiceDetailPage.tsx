@@ -4,7 +4,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
   deleteService,
   getApiErrorMessage,
-  getHealthChecks,
+  getHealthChecksPage,
   getIncidents,
   getService,
   getServiceMetrics,
@@ -13,6 +13,7 @@ import {
 import { useAuth } from '../auth/useAuth'
 import { IncidentTable } from '../components/IncidentTable'
 import { LatencyChart } from '../components/LatencyChart'
+import { Pagination } from '../components/Pagination'
 import { StatusBadge } from '../components/StatusBadge'
 import type {
   FailureType,
@@ -34,12 +35,17 @@ const failureLabels: Record<FailureType, string> = {
   NETWORK_ERROR: 'Network request failed',
 }
 
+const checkPageSize = 10
+
 export function ServiceDetailPage() {
   const { canManage } = useAuth()
   const serviceId = Number(useParams().id)
   const navigate = useNavigate()
   const [service, setService] = useState<MonitoredService | null>(null)
   const [checks, setChecks] = useState<HealthCheck[]>([])
+  const [checkPage, setCheckPage] = useState(0)
+  const [checkTotalElements, setCheckTotalElements] = useState(0)
+  const [checkTotalPages, setCheckTotalPages] = useState(0)
   const [incidents, setIncidents] = useState<Incident[]>([])
   const [metrics, setMetrics] = useState<ServiceMetrics | null>(null)
   const [loading, setLoading] = useState(true)
@@ -52,12 +58,14 @@ export function ServiceDetailPage() {
     const [serviceResponse, checksResponse, incidentsResponse, metricsResponse] =
       await Promise.all([
         getService(serviceId),
-        getHealthChecks(serviceId, 50),
+        getHealthChecksPage(serviceId, checkPage, checkPageSize),
         getIncidents(undefined, serviceId),
         getServiceMetrics(serviceId),
       ])
     setService(serviceResponse)
-    setChecks(checksResponse)
+    setChecks(checksResponse.content)
+    setCheckTotalElements(checksResponse.totalElements)
+    setCheckTotalPages(checksResponse.totalPages)
     setIncidents(incidentsResponse)
     setMetrics(metricsResponse)
   }
@@ -71,12 +79,13 @@ export function ServiceDetailPage() {
       })
       .finally(() => setLoading(false))
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [serviceId])
+  }, [serviceId, checkPage])
 
   async function handleRunCheck() {
     try {
       setRunning(true)
       await runCheck(serviceId)
+      setCheckPage(0)
       await load()
       setError(null)
     } catch (runError) {
@@ -266,6 +275,12 @@ export function ServiceDetailPage() {
             </tbody>
           </table>
         </div>
+        <Pagination
+          page={checkPage}
+          totalPages={checkTotalPages}
+          totalElements={checkTotalElements}
+          onPageChange={setCheckPage}
+        />
       </section>
 
       <section className="panel full-span">

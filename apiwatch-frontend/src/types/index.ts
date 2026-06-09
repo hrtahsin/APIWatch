@@ -14,6 +14,14 @@ export type FailureType =
   | 'RATE_LIMITED'
   | 'NETWORK_ERROR'
 
+export interface PageResponse<T> {
+  content: T[]
+  page: number
+  size: number
+  totalElements: number
+  totalPages: number
+}
+
 export interface MonitoredService {
   id: number
   name: string
