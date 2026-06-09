@@ -22,7 +22,7 @@ server:
 apiwatch:
   scheduler:
     enabled: ${APIWATCH_SCHEDULER_ENABLED:true}
-    interval-ms: ${APIWATCH_SCHEDULER_INTERVAL_MS:60000}
+    interval-ms: ${APIWATCH_SCHEDULER_INTERVAL_MS:5000}
     initial-delay-ms: ${APIWATCH_SCHEDULER_INITIAL_DELAY_MS:15000}
   frontend-origin: ${APIWATCH_FRONTEND_ORIGIN:http://localhost:5173}
   secrets:

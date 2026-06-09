@@ -47,13 +47,21 @@ public class ServiceMonitorService {
         }
 
         MonitoredService service = new MonitoredService();
+        ExpectedStatusRange expectedStatus = resolveExpectedStatusRange(
+                request.expectedStatusCode(),
+                request.expectedStatusMin(),
+                request.expectedStatusMax(),
+                new ExpectedStatusRange(200, 299)
+        );
         apply(
                 service,
                 name,
                 request.url().trim(),
                 request.method() == null ? HttpMethodType.GET : request.method(),
-                request.expectedStatusCode() == null ? 200 : request.expectedStatusCode(),
+                expectedStatus,
                 request.timeoutMs() == null ? 2000 : request.timeoutMs(),
+                request.checkIntervalSeconds() == null ? 60 : request.checkIntervalSeconds(),
+                request.responseBodyContains(),
                 request.failureThreshold() == null ? 3 : request.failureThreshold(),
                 request.active() == null || request.active()
         );
@@ -87,13 +95,24 @@ public class ServiceMonitorService {
             throw new BadRequestException("A service with this name already exists");
         }
 
+        ExpectedStatusRange expectedStatus = resolveExpectedStatusRange(
+                request.expectedStatusCode(),
+                request.expectedStatusMin(),
+                request.expectedStatusMax(),
+                new ExpectedStatusRange(
+                        service.getExpectedStatusMin(),
+                        service.getExpectedStatusMax()
+                )
+        );
         apply(
                 service,
                 name,
                 request.url().trim(),
                 request.method(),
-                request.expectedStatusCode(),
+                expectedStatus,
                 request.timeoutMs(),
+                request.checkIntervalSeconds(),
+                request.responseBodyContains(),
                 request.failureThreshold(),
                 request.active()
         );
@@ -111,6 +130,13 @@ public class ServiceMonitorService {
     @Transactional
     public void delete(Long id) {
         serviceRepository.delete(getEntity(id));
+    }
+
+    @Transactional
+    public ServiceResponse setActive(Long id, boolean active) {
+        MonitoredService service = getEntity(id);
+        service.setActive(active);
+        return toResponse(serviceRepository.save(service));
     }
 
     @Transactional
@@ -134,18 +160,53 @@ public class ServiceMonitorService {
             String name,
             String url,
             HttpMethodType method,
-            int expectedStatusCode,
+            ExpectedStatusRange expectedStatus,
             int timeoutMs,
+            int checkIntervalSeconds,
+            String responseBodyContains,
             int failureThreshold,
             boolean active
     ) {
         service.setName(name);
         service.setUrl(url);
         service.setMethod(method);
-        service.setExpectedStatusCode(expectedStatusCode);
+        service.setExpectedStatusCode(expectedStatus.min());
+        service.setExpectedStatusMin(expectedStatus.min());
+        service.setExpectedStatusMax(expectedStatus.max());
         service.setTimeoutMs(timeoutMs);
+        service.setCheckIntervalSeconds(checkIntervalSeconds);
+        service.setResponseBodyContains(normalizeOptional(responseBodyContains));
         service.setFailureThreshold(failureThreshold);
         service.setActive(active);
+    }
+
+    private ExpectedStatusRange resolveExpectedStatusRange(
+            Integer legacyStatusCode,
+            Integer requestedMin,
+            Integer requestedMax,
+            ExpectedStatusRange fallback
+    ) {
+        if (requestedMin == null && requestedMax == null) {
+            if (legacyStatusCode != null) {
+                return new ExpectedStatusRange(legacyStatusCode, legacyStatusCode);
+            }
+            return fallback;
+        }
+        if (requestedMin == null || requestedMax == null) {
+            throw new BadRequestException(
+                    "Expected status minimum and maximum must be provided together"
+            );
+        }
+        if (requestedMin > requestedMax) {
+            throw new BadRequestException(
+                    "Expected status minimum cannot be greater than the maximum"
+            );
+        }
+        return new ExpectedStatusRange(requestedMin, requestedMax);
+    }
+
+    private String normalizeOptional(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
 
     private ServiceResponse toResponse(MonitoredService service) {
@@ -162,7 +223,11 @@ public class ServiceMonitorService {
                 service.getUrl(),
                 service.getMethod(),
                 service.getExpectedStatusCode(),
+                service.getExpectedStatusMin(),
+                service.getExpectedStatusMax(),
                 service.getTimeoutMs(),
+                service.getCheckIntervalSeconds(),
+                service.getResponseBodyContains(),
                 service.getFailureThreshold(),
                 service.isActive(),
                 latest == null ? HealthStatus.UNKNOWN : latest.getStatus(),
@@ -180,5 +245,8 @@ public class ServiceMonitorService {
                 service.getCreatedAt(),
                 service.getUpdatedAt()
         );
+    }
+
+    private record ExpectedStatusRange(int min, int max) {
     }
 }

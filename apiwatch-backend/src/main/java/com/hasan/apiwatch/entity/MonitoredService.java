@@ -36,8 +36,20 @@ public class MonitoredService {
     @Column(name = "expected_status_code", nullable = false)
     private int expectedStatusCode = 200;
 
+    @Column(name = "expected_status_min", nullable = false)
+    private int expectedStatusMin = 200;
+
+    @Column(name = "expected_status_max", nullable = false)
+    private int expectedStatusMax = 299;
+
     @Column(name = "timeout_ms", nullable = false)
     private int timeoutMs = 2000;
+
+    @Column(name = "check_interval_seconds", nullable = false)
+    private int checkIntervalSeconds = 60;
+
+    @Column(name = "response_body_contains", length = 500)
+    private String responseBodyContains;
 
     @Column(name = "failure_threshold", nullable = false)
     private int failureThreshold = 3;
@@ -115,12 +127,44 @@ public class MonitoredService {
         this.expectedStatusCode = expectedStatusCode;
     }
 
+    public int getExpectedStatusMin() {
+        return expectedStatusMin;
+    }
+
+    public void setExpectedStatusMin(int expectedStatusMin) {
+        this.expectedStatusMin = expectedStatusMin;
+    }
+
+    public int getExpectedStatusMax() {
+        return expectedStatusMax;
+    }
+
+    public void setExpectedStatusMax(int expectedStatusMax) {
+        this.expectedStatusMax = expectedStatusMax;
+    }
+
     public int getTimeoutMs() {
         return timeoutMs;
     }
 
     public void setTimeoutMs(int timeoutMs) {
         this.timeoutMs = timeoutMs;
+    }
+
+    public int getCheckIntervalSeconds() {
+        return checkIntervalSeconds;
+    }
+
+    public void setCheckIntervalSeconds(int checkIntervalSeconds) {
+        this.checkIntervalSeconds = checkIntervalSeconds;
+    }
+
+    public String getResponseBodyContains() {
+        return responseBodyContains;
+    }
+
+    public void setResponseBodyContains(String responseBodyContains) {
+        this.responseBodyContains = responseBodyContains;
     }
 
     public int getFailureThreshold() {
