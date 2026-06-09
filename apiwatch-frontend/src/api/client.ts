@@ -9,6 +9,7 @@ import type {
   NotificationDelivery,
   NotificationSettings,
   NotificationSettingsInput,
+  PageResponse,
   ServiceInput,
   ServiceMetrics,
 } from '../types'
@@ -265,9 +266,33 @@ function demoChecks(serviceId: number): HealthCheck[] {
   })
 }
 
+function paginate<T>(items: T[], page: number, size: number): PageResponse<T> {
+  const normalizedPage = Math.max(page, 0)
+  const normalizedSize = Math.max(size, 1)
+  const start = normalizedPage * normalizedSize
+  return {
+    content: items.slice(start, start + normalizedSize),
+    page: normalizedPage,
+    size: normalizedSize,
+    totalElements: items.length,
+    totalPages: Math.ceil(items.length / normalizedSize),
+  }
+}
+
+export async function getServicesPage(
+  page = 0,
+  size = 20,
+): Promise<PageResponse<MonitoredService>> {
+  if (demoMode) return paginate(demoServices, page, size)
+  return (
+    await http.get<PageResponse<MonitoredService>>('/services', {
+      params: { page, size },
+    })
+  ).data
+}
+
 export async function getServices(): Promise<MonitoredService[]> {
-  if (demoMode) return demoServices
-  return (await http.get<MonitoredService[]>('/services')).data
+  return (await getServicesPage(0, 100)).content
 }
 
 export async function getNotificationSettings(): Promise<NotificationSettings> {
@@ -445,10 +470,41 @@ export async function runCheck(id: number): Promise<HealthCheck> {
   return (await http.post<HealthCheck>(`/services/${id}/check`)).data
 }
 
-export async function getHealthChecks(id: number, limit = 50): Promise<HealthCheck[]> {
-  if (demoMode) return demoChecks(id).slice(-limit).reverse()
+export async function getHealthChecksPage(
+  id: number,
+  page = 0,
+  size = 20,
+): Promise<PageResponse<HealthCheck>> {
+  if (demoMode) return paginate(demoChecks(id).reverse(), page, size)
   return (
-    await http.get<HealthCheck[]>(`/services/${id}/health-checks`, { params: { limit } })
+    await http.get<PageResponse<HealthCheck>>(`/services/${id}/health-checks`, {
+      params: { page, size },
+    })
+  ).data
+}
+
+export async function getHealthChecks(id: number, limit = 50): Promise<HealthCheck[]> {
+  return (await getHealthChecksPage(id, 0, limit)).content
+}
+
+export async function getIncidentsPage(
+  status?: IncidentStatus,
+  serviceId?: number,
+  page = 0,
+  size = 20,
+): Promise<PageResponse<Incident>> {
+  if (demoMode) {
+    const incidents = demoIncidents.filter(
+      (incident) =>
+        (!status || incident.status === status) &&
+        (!serviceId || incident.serviceId === serviceId),
+    )
+    return paginate(incidents, page, size)
+  }
+  return (
+    await http.get<PageResponse<Incident>>('/incidents', {
+      params: { status, serviceId, page, size },
+    })
   ).data
 }
 
@@ -456,14 +512,7 @@ export async function getIncidents(
   status?: IncidentStatus,
   serviceId?: number,
 ): Promise<Incident[]> {
-  if (demoMode) {
-    return demoIncidents.filter(
-      (incident) =>
-        (!status || incident.status === status) &&
-        (!serviceId || incident.serviceId === serviceId),
-    )
-  }
-  return (await http.get<Incident[]>('/incidents', { params: { status, serviceId } })).data
+  return (await getIncidentsPage(status, serviceId, 0, 100)).content
 }
 
 export async function resolveIncident(id: number): Promise<Incident> {
