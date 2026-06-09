@@ -1,5 +1,6 @@
 import axios from 'axios'
 import type {
+  AuthUser,
   DashboardSummary,
   HealthCheck,
   Incident,
@@ -12,10 +13,31 @@ import type {
   ServiceMetrics,
 } from '../types'
 
+const authStorageKey = 'apiwatch-basic-auth'
+
 const http = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080/api',
   timeout: 15_000,
 })
+
+http.interceptors.request.use((config) => {
+  const credentials =
+    typeof window === 'undefined' ? null : window.sessionStorage.getItem(authStorageKey)
+  if (credentials) {
+    config.headers.Authorization = `Basic ${credentials}`
+  }
+  return config
+})
+
+http.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (axios.isAxiosError(error) && error.response?.status === 401 && typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('apiwatch:unauthorized'))
+    }
+    return Promise.reject(error)
+  },
+)
 
 export function getApiErrorMessage(error: unknown, fallback: string): string {
   if (!axios.isAxiosError(error)) {
@@ -44,6 +66,32 @@ let demoNotificationSettings: NotificationSettings = {
 }
 
 const demoNotificationDeliveries: NotificationDelivery[] = []
+
+export function setApiCredentials(username: string, password: string) {
+  window.sessionStorage.setItem(authStorageKey, window.btoa(`${username}:${password}`))
+}
+
+export function clearApiCredentials() {
+  window.sessionStorage.removeItem(authStorageKey)
+}
+
+export function hasApiCredentials(): boolean {
+  return window.sessionStorage.getItem(authStorageKey) !== null
+}
+
+export async function getCurrentUser(): Promise<AuthUser> {
+  if (demoMode) {
+    const credentials = window.sessionStorage.getItem(authStorageKey)
+    const username = credentials
+      ? window.atob(credentials).split(':', 1)[0]
+      : 'demo-admin'
+    return {
+      username,
+      role: username.toLowerCase().includes('viewer') ? 'VIEWER' : 'ADMIN',
+    }
+  }
+  return (await http.get<AuthUser>('/auth/me')).data
+}
 
 let demoServices: MonitoredService[] = [
   {

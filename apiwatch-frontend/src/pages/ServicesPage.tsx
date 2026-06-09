@@ -2,10 +2,12 @@ import { Plus, Search } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { getApiErrorMessage, getServices, setServiceActive } from '../api/client'
+import { useAuth } from '../auth/useAuth'
 import { ServiceTable } from '../components/ServiceTable'
 import type { MonitoredService } from '../types'
 
 export function ServicesPage() {
+  const { canManage } = useAuth()
   const [services, setServices] = useState<MonitoredService[]>([])
   const [query, setQuery] = useState('')
   const [loading, setLoading] = useState(true)
@@ -57,10 +59,12 @@ export function ServicesPage() {
           <span>Inventory</span>
           <h2>All monitored services</h2>
         </div>
-        <Link className="primary-button" to="/services/new">
-          <Plus size={17} />
-          Add service
-        </Link>
+        {canManage && (
+          <Link className="primary-button" to="/services/new">
+            <Plus size={17} />
+            Add service
+          </Link>
+        )}
       </div>
       <div className="table-toolbar">
         <label className="search-box">
@@ -79,7 +83,8 @@ export function ServicesPage() {
       ) : (
         <ServiceTable
           services={filteredServices}
-          onActiveChange={handleActiveChange}
+          canManage={canManage}
+          onActiveChange={canManage ? handleActiveChange : undefined}
           updatingServiceId={updatingServiceId}
         />
       )}

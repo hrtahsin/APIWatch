@@ -27,7 +27,8 @@ class NotificationSettingsServiceTest {
                 .thenAnswer(invocation -> invocation.getArgument(0));
         NotificationSettingsService service = new NotificationSettingsService(
                 repository,
-                new SecretEncryptionService(TEST_KEY)
+                new SecretEncryptionService(TEST_KEY),
+                new UrlSafetyService(false, "")
         );
 
         var response = service.update(new UpdateNotificationSettingsRequest(

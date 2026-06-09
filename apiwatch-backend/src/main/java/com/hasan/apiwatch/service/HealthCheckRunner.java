@@ -7,6 +7,7 @@ import com.hasan.apiwatch.enums.FailureType;
 import com.hasan.apiwatch.enums.HealthStatus;
 import com.hasan.apiwatch.exception.CheckAlreadyRunningException;
 import com.hasan.apiwatch.exception.ServiceRateLimitedException;
+import com.hasan.apiwatch.exception.UnsafeTargetException;
 import com.hasan.apiwatch.repository.HealthCheckRepository;
 import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Service;
@@ -35,6 +36,7 @@ public class HealthCheckRunner {
     private final ServiceMonitorService serviceMonitorService;
     private final IncidentService incidentService;
     private final ServiceCredentialService credentialService;
+    private final UrlSafetyService urlSafetyService;
     private final Set<Long> runningServiceIds = ConcurrentHashMap.newKeySet();
 
     public HealthCheckRunner(
@@ -42,13 +44,15 @@ public class HealthCheckRunner {
             HealthCheckRepository healthCheckRepository,
             ServiceMonitorService serviceMonitorService,
             IncidentService incidentService,
-            ServiceCredentialService credentialService
+            ServiceCredentialService credentialService,
+            UrlSafetyService urlSafetyService
     ) {
         this.webClient = webClientBuilder.build();
         this.healthCheckRepository = healthCheckRepository;
         this.serviceMonitorService = serviceMonitorService;
         this.incidentService = incidentService;
         this.credentialService = credentialService;
+        this.urlSafetyService = urlSafetyService;
     }
 
     @Transactional
@@ -85,6 +89,7 @@ public class HealthCheckRunner {
         HealthStatus status;
 
         try {
+            urlSafetyService.assertRequestAllowed(service.getUrl());
             long hardTimeoutMs = Math.min(120_000L, service.getTimeoutMs() + 1_000L);
             EndpointResponse endpointResponse = webClient.get()
                     .uri(service.getUrl())
@@ -207,6 +212,9 @@ public class HealthCheckRunner {
         }
         if (cause instanceof ConnectException) {
             return FailureType.CONNECTION_FAILURE;
+        }
+        if (cause instanceof UnsafeTargetException) {
+            return FailureType.SECURITY_BLOCKED;
         }
         if (exception instanceof WebClientRequestException) {
             return FailureType.NETWORK_ERROR;

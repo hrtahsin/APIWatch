@@ -27,6 +27,16 @@ apiwatch:
   frontend-origin: ${APIWATCH_FRONTEND_ORIGIN:http://localhost:5173}
   secrets:
     encryption-key: ${APIWATCH_ENCRYPTION_KEY:YXBpd2F0Y2gtZGV2LWVuY3J5cHRpb24ta2V5LTMyYiE=}
+  auth:
+    admin:
+      username: ${APIWATCH_ADMIN_USERNAME:admin}
+      password: ${APIWATCH_ADMIN_PASSWORD:admin-change-me}
+    viewer:
+      username: ${APIWATCH_VIEWER_USERNAME:viewer}
+      password: ${APIWATCH_VIEWER_PASSWORD:viewer-change-me}
+  security:
+    block-private-targets: ${APIWATCH_BLOCK_PRIVATE_TARGETS:true}
+    private-target-allowlist: ${APIWATCH_PRIVATE_TARGET_ALLOWLIST:}
   demo-data:
     enabled: ${APIWATCH_DEMO_DATA_ENABLED:false}
     base-url: ${APIWATCH_DEMO_BASE_URL:http://localhost:8080}

@@ -3,9 +3,11 @@ export type IncidentStatus = 'ACTIVE' | 'RESOLVED'
 export type RequestAuthType = 'NONE' | 'BEARER' | 'API_KEY'
 export type NotificationEventType = 'INCIDENT_OPENED' | 'INCIDENT_RESOLVED'
 export type NotificationDeliveryStatus = 'SENT' | 'FAILED' | 'SKIPPED_COOLDOWN'
+export type UserRole = 'ADMIN' | 'VIEWER'
 export type FailureType =
   | 'HTTP_STATUS'
   | 'RESPONSE_VALIDATION'
+  | 'SECURITY_BLOCKED'
   | 'TIMEOUT'
   | 'DNS_FAILURE'
   | 'CONNECTION_FAILURE'
@@ -135,4 +137,9 @@ export interface NotificationDelivery {
   httpStatusCode: number | null
   errorMessage: string | null
   attemptedAt: string
+}
+
+export interface AuthUser {
+  username: string
+  role: UserRole
 }

@@ -10,6 +10,7 @@ import {
   getServiceMetrics,
   runCheck,
 } from '../api/client'
+import { useAuth } from '../auth/useAuth'
 import { IncidentTable } from '../components/IncidentTable'
 import { LatencyChart } from '../components/LatencyChart'
 import { StatusBadge } from '../components/StatusBadge'
@@ -25,6 +26,7 @@ import { formatDate } from '../utils/format'
 const failureLabels: Record<FailureType, string> = {
   HTTP_STATUS: 'Unexpected HTTP status',
   RESPONSE_VALIDATION: 'Response body validation failed',
+  SECURITY_BLOCKED: 'Target blocked by security policy',
   TIMEOUT: 'Request timed out',
   DNS_FAILURE: 'DNS lookup failed',
   CONNECTION_FAILURE: 'Connection failed',
@@ -33,6 +35,7 @@ const failureLabels: Record<FailureType, string> = {
 }
 
 export function ServiceDetailPage() {
+  const { canManage } = useAuth()
   const serviceId = Number(useParams().id)
   const navigate = useNavigate()
   const [service, setService] = useState<MonitoredService | null>(null)
@@ -125,28 +128,30 @@ export function ServiceDetailPage() {
             {service.responseBodyContains && <span>Body validation enabled</span>}
           </div>
         </div>
-        <div className="hero-actions">
-          <button
-            className="danger-button"
-            onClick={() => setConfirmingDelete(true)}
-            type="button"
-          >
-            <Trash2 size={17} />
-            Delete service
-          </button>
-          <Link className="secondary-button" to={`/services/${service.id}/edit`}>
-            Edit configuration
-          </Link>
-          <button
-            className="primary-button"
-            onClick={handleRunCheck}
-            disabled={running || checksPaused}
-            type="button"
-          >
-            {checksPaused ? <Clock3 size={17} /> : <Play size={17} />}
-            {running ? 'Running...' : checksPaused ? 'Rate limit pause' : 'Run check'}
-          </button>
-        </div>
+        {canManage && (
+          <div className="hero-actions">
+            <button
+              className="danger-button"
+              onClick={() => setConfirmingDelete(true)}
+              type="button"
+            >
+              <Trash2 size={17} />
+              Delete service
+            </button>
+            <Link className="secondary-button" to={`/services/${service.id}/edit`}>
+              Edit configuration
+            </Link>
+            <button
+              className="primary-button"
+              onClick={handleRunCheck}
+              disabled={running || checksPaused}
+              type="button"
+            >
+              {checksPaused ? <Clock3 size={17} /> : <Play size={17} />}
+              {running ? 'Running...' : checksPaused ? 'Rate limit pause' : 'Run check'}
+            </button>
+          </div>
+        )}
       </section>
 
       {(service.lastFailureType || checksPaused) && (
@@ -171,7 +176,7 @@ export function ServiceDetailPage() {
         </section>
       )}
 
-      {confirmingDelete && (
+      {canManage && confirmingDelete && (
         <section className="delete-confirmation">
           <div>
             <strong>Delete {service.name}?</strong>

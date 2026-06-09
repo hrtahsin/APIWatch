@@ -22,6 +22,9 @@ Operations teams need a fast answer to four questions: what is failing, when it 
 - Automatic and manual incident resolution
 - Encrypted incident webhook configuration with delivery cooldowns
 - Notifications for incident open and resolution events
+- HTTP Basic application authentication with administrator and viewer roles
+- SSRF protection for monitored URLs and notification webhooks
+- Private-network blocking with an explicit hostname allowlist
 - Uptime, average latency, P95 latency, and failure metrics
 - PostgreSQL persistence with Flyway migrations
 - Responsive React dashboard with charts and filtering
@@ -86,6 +89,9 @@ Open:
 - REST API: `http://localhost:8080/api`
 - Healthy mock: `http://localhost:8080/api/mock/healthy`
 
+Sign in with the administrator or viewer credentials configured in `.env`.
+Replace both example passwords before exposing APIWatch outside local development.
+
 Compose enables demo seeding by default. It registers healthy, slow, failing, GitHub, and JSONPlaceholder services. The scheduler starts checking them after 15 seconds.
 
 Stop the stack:
@@ -135,6 +141,7 @@ Register a service:
 
 ```bash
 curl -X POST http://localhost:8080/api/services \
+  -u "$APIWATCH_ADMIN_USERNAME:$APIWATCH_ADMIN_PASSWORD" \
   -H "Content-Type: application/json" \
   -d '{
     "name": "Payment Service",
@@ -165,6 +172,7 @@ Useful endpoints:
 | Method | Endpoint | Purpose |
 | --- | --- | --- |
 | `POST` | `/api/services` | Register a service |
+| `GET` | `/api/auth/me` | Return the authenticated user and role |
 | `GET` | `/api/services` | List services with current state |
 | `PUT` | `/api/services/{id}` | Update monitoring configuration |
 | `PATCH` | `/api/services/{id}/active` | Pause or resume scheduled checks |
@@ -203,6 +211,20 @@ Indexes support recent health-check lookups and incident filtering. A partial un
 Webhook URLs are encrypted with `APIWATCH_ENCRYPTION_KEY` and never returned by
 the API. Delivery attempts record success, failure, HTTP status, and cooldown
 suppression for operational review.
+
+## Security
+
+All `/api` endpoints require HTTP Basic authentication except local mock
+endpoints. `VIEWER` accounts can read monitoring data. `ADMIN` accounts can
+create, edit, delete, check, pause, resolve, and configure notifications.
+Deploy behind HTTPS because Basic credentials accompany every API request.
+
+Outbound monitored URLs and webhooks are checked when saved and immediately
+before use. Loopback, private, link-local, multicast, carrier-grade NAT, and
+other internal addresses are blocked. Keep `APIWATCH_BLOCK_PRIVATE_TARGETS=true`
+in production. Add required internal hostnames to
+`APIWATCH_PRIVATE_TARGET_ALLOWLIST` as a comma-separated exact or `*.domain`
+allowlist. Redirect following is disabled to prevent redirect-based SSRF.
 
 ## Testing
 

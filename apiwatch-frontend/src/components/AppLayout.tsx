@@ -2,6 +2,7 @@ import {
   Activity,
   Bell,
   Gauge,
+  LogOut,
   Menu,
   Plus,
   RefreshCw,
@@ -11,6 +12,7 @@ import {
 } from 'lucide-react'
 import { useState } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
+import { useAuth } from '../auth/useAuth'
 
 const navigation = [
   { to: '/', label: 'Overview', icon: Gauge },
@@ -28,6 +30,7 @@ const titles: Record<string, { title: string; eyebrow: string }> = {
 
 export function AppLayout() {
   const [mobileOpen, setMobileOpen] = useState(false)
+  const { user, canManage, logout } = useAuth()
   const location = useLocation()
   const title = titles[location.pathname] ?? {
     title: location.pathname.includes('/edit') ? 'Edit service' : 'Service details',
@@ -65,31 +68,38 @@ export function AppLayout() {
             </NavLink>
           ))}
 
-          <span className="nav-label nav-label-secondary">Manage</span>
-          <NavLink
-            to="/services/new"
-            onClick={() => setMobileOpen(false)}
-            className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
-          >
-            <Plus size={18} />
-            <span>Add service</span>
-          </NavLink>
-          <NavLink
-            to="/settings"
-            onClick={() => setMobileOpen(false)}
-            className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
-          >
-            <Settings size={18} />
-            <span>Settings</span>
-          </NavLink>
+          {canManage && (
+            <>
+              <span className="nav-label nav-label-secondary">Manage</span>
+              <NavLink
+                to="/services/new"
+                onClick={() => setMobileOpen(false)}
+                className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+              >
+                <Plus size={18} />
+                <span>Add service</span>
+              </NavLink>
+              <NavLink
+                to="/settings"
+                onClick={() => setMobileOpen(false)}
+                className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+              >
+                <Settings size={18} />
+                <span>Settings</span>
+              </NavLink>
+            </>
+          )}
         </nav>
 
         <div className="sidebar-status">
           <span className="live-dot" />
           <div>
-            <strong>Monitoring active</strong>
-            <span>Per-service schedules</span>
+            <strong>{user?.username}</strong>
+            <span>{user?.role === 'ADMIN' ? 'Administrator' : 'Read-only viewer'}</span>
           </div>
+          <button aria-label="Sign out" onClick={logout} title="Sign out" type="button">
+            <LogOut size={16} />
+          </button>
         </div>
       </aside>
 
@@ -111,10 +121,12 @@ export function AppLayout() {
             <button className="icon-button" onClick={() => window.location.reload()} aria-label="Refresh data">
               <RefreshCw size={17} />
             </button>
-            <NavLink className="primary-button compact" to="/services/new">
-              <Plus size={17} />
-              Add service
-            </NavLink>
+            {canManage && (
+              <NavLink className="primary-button compact" to="/services/new">
+                <Plus size={17} />
+                Add service
+              </NavLink>
+            )}
           </div>
         </header>
         <div className="page-content">

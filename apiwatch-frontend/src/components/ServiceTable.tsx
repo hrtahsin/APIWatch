@@ -7,11 +7,13 @@ import { StatusBadge } from './StatusBadge'
 export function ServiceTable({
   services,
   compact = false,
+  canManage = true,
   onActiveChange,
   updatingServiceId,
 }: {
   services: MonitoredService[]
   compact?: boolean
+  canManage?: boolean
   onActiveChange?: (service: MonitoredService) => void
   updatingServiceId?: number | null
 }) {
@@ -69,7 +71,7 @@ export function ServiceTable({
                       {service.active ? <Pause size={16} /> : <Play size={16} />}
                     </button>
                   )}
-                  {!compact && (
+                  {!compact && canManage && (
                     <Link to={`/services/${service.id}/edit`} aria-label={`Edit ${service.name}`}>
                       <Pencil size={16} />
                     </Link>
