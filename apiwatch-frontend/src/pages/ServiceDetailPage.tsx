@@ -24,6 +24,7 @@ import { formatDate } from '../utils/format'
 
 const failureLabels: Record<FailureType, string> = {
   HTTP_STATUS: 'Unexpected HTTP status',
+  RESPONSE_VALIDATION: 'Response body validation failed',
   TIMEOUT: 'Request timed out',
   DNS_FAILURE: 'DNS lookup failed',
   CONNECTION_FAILURE: 'Connection failed',
@@ -113,9 +114,15 @@ export function ServiceDetailPage() {
           <p>{service.url}</p>
           <div className="hero-meta">
             <StatusBadge status={service.currentStatus} />
-            <span>Expected {service.expectedStatusCode}</span>
+            <span>
+              Expected {service.expectedStatusMin === service.expectedStatusMax
+                ? service.expectedStatusMin
+                : `${service.expectedStatusMin}-${service.expectedStatusMax}`}
+            </span>
             <span>{service.timeoutMs} ms timeout</span>
+            <span>Every {service.checkIntervalSeconds}s</span>
             <span>Threshold {service.failureThreshold}</span>
+            {service.responseBodyContains && <span>Body validation enabled</span>}
           </div>
         </div>
         <div className="hero-actions">

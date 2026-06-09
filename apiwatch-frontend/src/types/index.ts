@@ -3,6 +3,7 @@ export type IncidentStatus = 'ACTIVE' | 'RESOLVED'
 export type RequestAuthType = 'NONE' | 'BEARER' | 'API_KEY'
 export type FailureType =
   | 'HTTP_STATUS'
+  | 'RESPONSE_VALIDATION'
   | 'TIMEOUT'
   | 'DNS_FAILURE'
   | 'CONNECTION_FAILURE'
@@ -15,7 +16,11 @@ export interface MonitoredService {
   url: string
   method: 'GET'
   expectedStatusCode: number
+  expectedStatusMin: number
+  expectedStatusMax: number
   timeoutMs: number
+  checkIntervalSeconds: number
+  responseBodyContains: string | null
   failureThreshold: number
   active: boolean
   currentStatus: HealthStatus
@@ -90,8 +95,11 @@ export interface ServiceInput {
   name: string
   url: string
   method: 'GET'
-  expectedStatusCode: number
+  expectedStatusMin: number
+  expectedStatusMax: number
   timeoutMs: number
+  checkIntervalSeconds: number
+  responseBodyContains: string
   failureThreshold: number
   active: boolean
   customHeaders: Record<string, string> | null

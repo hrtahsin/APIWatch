@@ -2,6 +2,7 @@ package com.hasan.apiwatch.controller;
 
 import com.hasan.apiwatch.dto.CreateServiceRequest;
 import com.hasan.apiwatch.dto.ServiceResponse;
+import com.hasan.apiwatch.dto.UpdateServiceActiveRequest;
 import com.hasan.apiwatch.dto.UpdateServiceRequest;
 import com.hasan.apiwatch.service.ServiceMonitorService;
 import jakarta.validation.Valid;
@@ -10,6 +11,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -49,6 +51,14 @@ public class MonitoredServiceController {
             @Valid @RequestBody UpdateServiceRequest request
     ) {
         return serviceMonitorService.update(id, request);
+    }
+
+    @PatchMapping("/{id}/active")
+    ServiceResponse setActive(
+            @PathVariable Long id,
+            @Valid @RequestBody UpdateServiceActiveRequest request
+    ) {
+        return serviceMonitorService.setActive(id, request.active());
     }
 
     @DeleteMapping("/{id}")

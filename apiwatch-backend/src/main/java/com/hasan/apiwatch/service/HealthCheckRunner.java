@@ -92,9 +92,22 @@ public class HealthCheckRunner {
                     .exchangeToMono(response -> {
                         HttpHeaders headers = new HttpHeaders();
                         headers.putAll(response.headers().asHttpHeaders());
-                        return response.releaseBody().thenReturn(
-                                new EndpointResponse(response.statusCode().value(), headers)
-                        );
+                        if (service.getResponseBodyContains() == null) {
+                            return response.releaseBody().thenReturn(
+                                    new EndpointResponse(
+                                            response.statusCode().value(),
+                                            headers,
+                                            null
+                                    )
+                            );
+                        }
+                        return response.bodyToMono(String.class)
+                                .defaultIfEmpty("")
+                                .map(body -> new EndpointResponse(
+                                        response.statusCode().value(),
+                                        headers,
+                                        body
+                                ));
                     })
                     .timeout(Duration.ofMillis(hardTimeoutMs))
                     .block();
@@ -123,14 +136,20 @@ public class HealthCheckRunner {
                 serviceMonitorService.clearRateLimit(service.getId());
                 status = classify(
                         statusCode,
-                        service.getExpectedStatusCode(),
+                        service.getExpectedStatusMin(),
+                        service.getExpectedStatusMax(),
                         responseTimeMs,
                         service.getTimeoutMs()
                 );
                 if (status == HealthStatus.DOWN) {
                     failureType = FailureType.HTTP_STATUS;
-                    errorMessage = "Expected HTTP " + service.getExpectedStatusCode()
+                    errorMessage = "Expected HTTP " + formatExpectedStatus(service)
                             + " but received " + statusCode;
+                } else if (service.getResponseBodyContains() != null
+                        && !endpointResponse.body().contains(service.getResponseBodyContains())) {
+                    status = HealthStatus.DOWN;
+                    failureType = FailureType.RESPONSE_VALIDATION;
+                    errorMessage = "Response body did not contain the configured text";
                 }
             }
         } catch (Exception exception) {
@@ -156,14 +175,22 @@ public class HealthCheckRunner {
 
     public HealthStatus classify(
             int actualStatusCode,
-            int expectedStatusCode,
+            int expectedStatusMin,
+            int expectedStatusMax,
             long responseTimeMs,
             int slowThresholdMs
     ) {
-        if (actualStatusCode != expectedStatusCode) {
+        if (actualStatusCode < expectedStatusMin || actualStatusCode > expectedStatusMax) {
             return HealthStatus.DOWN;
         }
         return responseTimeMs > slowThresholdMs ? HealthStatus.SLOW : HealthStatus.UP;
+    }
+
+    private String formatExpectedStatus(MonitoredService service) {
+        if (service.getExpectedStatusMin() == service.getExpectedStatusMax()) {
+            return Integer.toString(service.getExpectedStatusMin());
+        }
+        return service.getExpectedStatusMin() + "-" + service.getExpectedStatusMax();
     }
 
     boolean isRateLimited(int statusCode, Long remaining) {
@@ -264,6 +291,6 @@ public class HealthCheckRunner {
         );
     }
 
-    private record EndpointResponse(int statusCode, HttpHeaders headers) {
+    private record EndpointResponse(int statusCode, HttpHeaders headers, String body) {
     }
 }

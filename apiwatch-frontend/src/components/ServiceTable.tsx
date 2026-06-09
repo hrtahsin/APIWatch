@@ -1,4 +1,4 @@
-import { ArrowUpRight, Pencil } from 'lucide-react'
+import { ArrowUpRight, Pause, Pencil, Play } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import type { MonitoredService } from '../types'
 import { formatRelative } from '../utils/format'
@@ -7,9 +7,13 @@ import { StatusBadge } from './StatusBadge'
 export function ServiceTable({
   services,
   compact = false,
+  onActiveChange,
+  updatingServiceId,
 }: {
   services: MonitoredService[]
   compact?: boolean
+  onActiveChange?: (service: MonitoredService) => void
+  updatingServiceId?: number | null
 }) {
   if (services.length === 0) {
     return <div className="empty-state">No services have been registered yet.</div>
@@ -54,6 +58,17 @@ export function ServiceTable({
               <td className="muted-cell">{formatRelative(service.lastCheckedAt)}</td>
               <td>
                 <div className="row-actions">
+                  {!compact && onActiveChange && (
+                    <button
+                      aria-label={`${service.active ? 'Pause' : 'Resume'} ${service.name}`}
+                      disabled={updatingServiceId === service.id}
+                      onClick={() => onActiveChange(service)}
+                      title={service.active ? 'Pause monitoring' : 'Resume monitoring'}
+                      type="button"
+                    >
+                      {service.active ? <Pause size={16} /> : <Play size={16} />}
+                    </button>
+                  )}
                   {!compact && (
                     <Link to={`/services/${service.id}/edit`} aria-label={`Edit ${service.name}`}>
                       <Pencil size={16} />

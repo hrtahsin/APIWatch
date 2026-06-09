@@ -39,7 +39,11 @@ let demoServices: MonitoredService[] = [
     url: 'https://api.example.com/payments/health',
     method: 'GET',
     expectedStatusCode: 200,
+    expectedStatusMin: 200,
+    expectedStatusMax: 299,
     timeoutMs: 2000,
+    checkIntervalSeconds: 60,
+    responseBodyContains: null,
     failureThreshold: 3,
     active: true,
     currentStatus: 'UP',
@@ -63,7 +67,11 @@ let demoServices: MonitoredService[] = [
     url: 'https://api.example.com/auth/health',
     method: 'GET',
     expectedStatusCode: 200,
+    expectedStatusMin: 200,
+    expectedStatusMax: 299,
     timeoutMs: 1500,
+    checkIntervalSeconds: 30,
+    responseBodyContains: null,
     failureThreshold: 3,
     active: true,
     currentStatus: 'SLOW',
@@ -87,7 +95,11 @@ let demoServices: MonitoredService[] = [
     url: 'https://api.example.com/orders/health',
     method: 'GET',
     expectedStatusCode: 200,
+    expectedStatusMin: 200,
+    expectedStatusMax: 299,
     timeoutMs: 2000,
+    checkIntervalSeconds: 60,
+    responseBodyContains: '"status":"ok"',
     failureThreshold: 3,
     active: true,
     currentStatus: 'DOWN',
@@ -111,7 +123,11 @@ let demoServices: MonitoredService[] = [
     url: 'https://api.example.com/inventory/health',
     method: 'GET',
     expectedStatusCode: 200,
+    expectedStatusMin: 200,
+    expectedStatusMax: 299,
     timeoutMs: 2000,
+    checkIntervalSeconds: 120,
+    responseBodyContains: null,
     failureThreshold: 4,
     active: true,
     currentStatus: 'UP',
@@ -208,6 +224,8 @@ export async function createService(input: ServiceInput): Promise<MonitoredServi
     const { customHeaders, authValue, clearAuthSecret, ...publicInput } = input
     const service: MonitoredService = {
       ...publicInput,
+      expectedStatusCode: input.expectedStatusMin,
+      responseBodyContains: input.responseBodyContains.trim() || null,
       id: Math.max(0, ...demoServices.map((item) => item.id)) + 1,
       currentStatus: 'UNKNOWN',
       lastCheckedAt: null,
@@ -244,6 +262,8 @@ export async function updateService(
     const updated = {
       ...existing,
       ...publicInput,
+      expectedStatusCode: input.expectedStatusMin,
+      responseBodyContains: input.responseBodyContains.trim() || null,
       customHeaderNames:
         customHeaders === null ? existing.customHeaderNames : Object.keys(customHeaders),
       authHeaderName:
@@ -270,6 +290,19 @@ export async function deleteService(id: number): Promise<void> {
     return
   }
   await http.delete(`/services/${id}`)
+}
+
+export async function setServiceActive(
+  id: number,
+  active: boolean,
+): Promise<MonitoredService> {
+  if (demoMode) {
+    const existing = await getService(id)
+    const updated = { ...existing, active, updatedAt: new Date().toISOString() }
+    demoServices = demoServices.map((service) => (service.id === id ? updated : service))
+    return updated
+  }
+  return (await http.patch<MonitoredService>(`/services/${id}/active`, { active })).data
 }
 
 export async function runCheck(id: number): Promise<HealthCheck> {
