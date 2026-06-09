@@ -37,7 +37,8 @@ class WebhookNotificationServiceTest {
                         ClientResponse.create(HttpStatus.NO_CONTENT).build()
                 )),
                 mock(NotificationSettingsService.class),
-                repository
+                repository,
+                new UrlSafetyService(false, "")
         );
 
         service.deliver(event(), new NotificationSettingsService.NotificationTarget(
@@ -70,7 +71,8 @@ class WebhookNotificationServiceTest {
                         new AssertionError("Webhook must not be called during cooldown")
                 )),
                 mock(NotificationSettingsService.class),
-                repository
+                repository,
+                new UrlSafetyService(false, "")
         );
 
         service.deliver(event(), new NotificationSettingsService.NotificationTarget(

@@ -6,6 +6,7 @@ import com.hasan.apiwatch.enums.FailureType;
 import com.hasan.apiwatch.enums.HealthStatus;
 import com.hasan.apiwatch.exception.CheckAlreadyRunningException;
 import com.hasan.apiwatch.exception.ServiceRateLimitedException;
+import com.hasan.apiwatch.exception.UnsafeTargetException;
 import com.hasan.apiwatch.repository.HealthCheckRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
@@ -34,7 +35,8 @@ class HealthCheckRunnerTest {
             mock(HealthCheckRepository.class),
             mock(ServiceMonitorService.class),
             mock(IncidentService.class),
-            mock(ServiceCredentialService.class)
+            mock(ServiceCredentialService.class),
+            mock(UrlSafetyService.class)
     );
 
     @Test
@@ -67,6 +69,8 @@ class HealthCheckRunnerTest {
                 .isEqualTo(FailureType.DNS_FAILURE);
         assertThat(runner.classifyFailure(new RuntimeException(new ConnectException())))
                 .isEqualTo(FailureType.CONNECTION_FAILURE);
+        assertThat(runner.classifyFailure(new UnsafeTargetException("blocked")))
+                .isEqualTo(FailureType.SECURITY_BLOCKED);
     }
 
     @Test
@@ -88,7 +92,8 @@ class HealthCheckRunnerTest {
                 repository,
                 mock(ServiceMonitorService.class),
                 mock(IncidentService.class),
-                mock(ServiceCredentialService.class)
+                mock(ServiceCredentialService.class),
+                mock(UrlSafetyService.class)
         );
         MonitoredService service = service(12L);
         service.setTimeoutMs(100);
@@ -116,7 +121,8 @@ class HealthCheckRunnerTest {
                 repository,
                 mock(ServiceMonitorService.class),
                 mock(IncidentService.class),
-                mock(ServiceCredentialService.class)
+                mock(ServiceCredentialService.class),
+                mock(UrlSafetyService.class)
         );
         MonitoredService service = service(15L);
         service.setResponseBodyContains("\"status\":\"ok\"");

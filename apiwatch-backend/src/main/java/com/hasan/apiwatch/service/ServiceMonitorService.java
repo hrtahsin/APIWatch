@@ -26,17 +26,20 @@ public class ServiceMonitorService {
     private final HealthCheckRepository healthCheckRepository;
     private final IncidentRepository incidentRepository;
     private final ServiceCredentialService credentialService;
+    private final UrlSafetyService urlSafetyService;
 
     public ServiceMonitorService(
             MonitoredServiceRepository serviceRepository,
             HealthCheckRepository healthCheckRepository,
             IncidentRepository incidentRepository,
-            ServiceCredentialService credentialService
+            ServiceCredentialService credentialService,
+            UrlSafetyService urlSafetyService
     ) {
         this.serviceRepository = serviceRepository;
         this.healthCheckRepository = healthCheckRepository;
         this.incidentRepository = incidentRepository;
         this.credentialService = credentialService;
+        this.urlSafetyService = urlSafetyService;
     }
 
     @Transactional
@@ -56,7 +59,7 @@ public class ServiceMonitorService {
         apply(
                 service,
                 name,
-                request.url().trim(),
+                urlSafetyService.validateConfiguration(request.url()),
                 request.method() == null ? HttpMethodType.GET : request.method(),
                 expectedStatus,
                 request.timeoutMs() == null ? 2000 : request.timeoutMs(),
@@ -107,7 +110,7 @@ public class ServiceMonitorService {
         apply(
                 service,
                 name,
-                request.url().trim(),
+                urlSafetyService.validateConfiguration(request.url()),
                 request.method(),
                 expectedStatus,
                 request.timeoutMs(),

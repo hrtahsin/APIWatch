@@ -25,15 +25,18 @@ public class WebhookNotificationService {
     private final WebClient webClient;
     private final NotificationSettingsService settingsService;
     private final NotificationDeliveryRepository deliveryRepository;
+    private final UrlSafetyService urlSafetyService;
 
     public WebhookNotificationService(
             WebClient.Builder webClientBuilder,
             NotificationSettingsService settingsService,
-            NotificationDeliveryRepository deliveryRepository
+            NotificationDeliveryRepository deliveryRepository,
+            UrlSafetyService urlSafetyService
     ) {
         this.webClient = webClientBuilder.build();
         this.settingsService = settingsService;
         this.deliveryRepository = deliveryRepository;
+        this.urlSafetyService = urlSafetyService;
     }
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
@@ -57,6 +60,7 @@ public class WebhookNotificationService {
         }
 
         try {
+            urlSafetyService.assertRequestAllowed(target.webhookUrl());
             Integer statusCode = webClient.post()
                     .uri(target.webhookUrl())
                     .contentType(MediaType.APPLICATION_JSON)

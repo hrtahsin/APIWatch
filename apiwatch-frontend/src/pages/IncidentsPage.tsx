@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import { getIncidents, resolveIncident } from '../api/client'
+import { useAuth } from '../auth/useAuth'
 import { IncidentTable } from '../components/IncidentTable'
 import type { Incident, IncidentStatus } from '../types'
 
 const filters: Array<'ALL' | IncidentStatus> = ['ALL', 'ACTIVE', 'RESOLVED']
 
 export function IncidentsPage() {
+  const { canManage } = useAuth()
   const [incidents, setIncidents] = useState<Incident[]>([])
   const [filter, setFilter] = useState<'ALL' | IncidentStatus>('ALL')
   const [loading, setLoading] = useState(true)
@@ -64,7 +66,10 @@ export function IncidentsPage() {
       {loading ? (
         <div className="loading-panel">Loading incidents...</div>
       ) : (
-        <IncidentTable incidents={visibleIncidents} onResolve={handleResolve} />
+        <IncidentTable
+          incidents={visibleIncidents}
+          onResolve={canManage ? handleResolve : undefined}
+        />
       )}
     </section>
   )

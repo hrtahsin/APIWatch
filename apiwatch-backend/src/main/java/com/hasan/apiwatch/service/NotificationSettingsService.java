@@ -17,13 +17,16 @@ public class NotificationSettingsService {
 
     private final NotificationSettingsRepository repository;
     private final SecretEncryptionService encryptionService;
+    private final UrlSafetyService urlSafetyService;
 
     public NotificationSettingsService(
             NotificationSettingsRepository repository,
-            SecretEncryptionService encryptionService
+            SecretEncryptionService encryptionService,
+            UrlSafetyService urlSafetyService
     ) {
         this.repository = repository;
         this.encryptionService = encryptionService;
+        this.urlSafetyService = urlSafetyService;
     }
 
     @Transactional
@@ -37,7 +40,7 @@ public class NotificationSettingsService {
         if (Boolean.TRUE.equals(request.clearWebhook())) {
             settings.setWebhookUrlEncrypted(null);
         } else if (request.webhookUrl() != null && !request.webhookUrl().isBlank()) {
-            String webhookUrl = validateWebhookUrl(request.webhookUrl().trim());
+            String webhookUrl = urlSafetyService.validateConfiguration(request.webhookUrl());
             settings.setWebhookUrlEncrypted(encryptionService.encrypt(webhookUrl));
         }
 
@@ -63,21 +66,6 @@ public class NotificationSettingsService {
     private NotificationSettings getOrCreate() {
         return repository.findFirstByOrderByIdAsc()
                 .orElseGet(() -> repository.save(new NotificationSettings()));
-    }
-
-    private String validateWebhookUrl(String value) {
-        try {
-            URI uri = new URI(value);
-            String scheme = uri.getScheme();
-            if (scheme == null
-                    || (!scheme.equalsIgnoreCase("http") && !scheme.equalsIgnoreCase("https"))
-                    || uri.getHost() == null) {
-                throw new BadRequestException("Webhook URL must use HTTP or HTTPS");
-            }
-            return uri.toString();
-        } catch (URISyntaxException exception) {
-            throw new BadRequestException("Webhook URL is invalid");
-        }
     }
 
     private NotificationSettingsResponse toResponse(NotificationSettings settings) {
