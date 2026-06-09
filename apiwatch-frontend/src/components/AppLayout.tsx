@@ -83,7 +83,7 @@ export function AppLayout() {
           <span className="live-dot" />
           <div>
             <strong>Monitoring active</strong>
-            <span>60 second interval</span>
+            <span>Per-service schedules</span>
           </div>
         </div>
       </aside>

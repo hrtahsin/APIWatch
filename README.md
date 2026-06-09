@@ -15,7 +15,9 @@ Operations teams need a fast answer to four questions: what is failing, when it 
 - Failure diagnostics for HTTP, timeout, DNS, connection, and network errors
 - Encrypted Bearer tokens, API keys, and custom request headers
 - Masked credential metadata in API responses and the dashboard
-- Configurable expected status, timeout, and failure threshold
+- Per-service check intervals and pause/resume controls
+- Expected HTTP status ranges and optional response-body validation
+- Configurable timeout and failure threshold
 - Automatic incident creation after consecutive failures
 - Automatic and manual incident resolution
 - Uptime, average latency, P95 latency, and failure metrics
@@ -136,8 +138,11 @@ curl -X POST http://localhost:8080/api/services \
     "name": "Payment Service",
     "url": "https://example.com/health",
     "method": "GET",
-    "expectedStatusCode": 200,
+    "expectedStatusMin": 200,
+    "expectedStatusMax": 299,
     "timeoutMs": 2000,
+    "checkIntervalSeconds": 60,
+    "responseBodyContains": "\"status\":\"ok\"",
     "failureThreshold": 3,
     "active": true,
     "authType": "BEARER",
@@ -160,6 +165,7 @@ Useful endpoints:
 | `POST` | `/api/services` | Register a service |
 | `GET` | `/api/services` | List services with current state |
 | `PUT` | `/api/services/{id}` | Update monitoring configuration |
+| `PATCH` | `/api/services/{id}/active` | Pause or resume scheduled checks |
 | `DELETE` | `/api/services/{id}` | Delete a service and its history |
 | `POST` | `/api/services/{id}/check` | Trigger a health check |
 | `GET` | `/api/services/{id}/health-checks?limit=50` | Get recent checks |
@@ -179,9 +185,9 @@ Indexes support recent health-check lookups and incident filtering. A partial un
 ## Incident Rules
 
 1. Every completed request is stored as a health check.
-2. A matching status within the latency threshold is `UP`.
+2. A status inside the configured range and within the latency threshold is `UP`.
 3. A matching status beyond the threshold is `SLOW`.
-4. Network errors, hard timeouts, and unexpected statuses are `DOWN` with a failure category.
+4. Network errors, timeouts, unexpected statuses, and body validation failures are `DOWN`.
 5. HTTP `429`, or `403` with an exhausted rate-limit header, is `RATE_LIMITED`.
 6. Rate-limited services pause until `Retry-After` or provider reset metadata allows a retry.
 7. The configured number of consecutive `DOWN` checks creates one active incident.

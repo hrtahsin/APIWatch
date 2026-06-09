@@ -544,7 +544,8 @@ button {
   white-space: nowrap;
 }
 
-.row-actions a {
+.row-actions a,
+.row-actions button {
   display: grid;
   width: 34px;
   height: 34px;
@@ -553,6 +554,15 @@ button {
   border: 1px solid #e5ebf3;
   border-radius: 12px;
   background: #fff;
+}
+
+.row-actions button {
+  cursor: pointer;
+}
+
+.row-actions button:disabled {
+  cursor: wait;
+  opacity: 0.5;
 }
 
 .status-badge {

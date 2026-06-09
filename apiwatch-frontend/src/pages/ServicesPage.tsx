@@ -1,7 +1,7 @@
 import { Plus, Search } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { getServices } from '../api/client'
+import { getApiErrorMessage, getServices, setServiceActive } from '../api/client'
 import { ServiceTable } from '../components/ServiceTable'
 import type { MonitoredService } from '../types'
 
@@ -9,6 +9,7 @@ export function ServicesPage() {
   const [services, setServices] = useState<MonitoredService[]>([])
   const [query, setQuery] = useState('')
   const [loading, setLoading] = useState(true)
+  const [updatingServiceId, setUpdatingServiceId] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -18,7 +19,7 @@ export function ServicesPage() {
         setError(null)
       })
       .catch((loadError) => {
-        setError(loadError instanceof Error ? loadError.message : 'Unable to load services')
+        setError(getApiErrorMessage(loadError, 'Unable to load services'))
       })
       .finally(() => setLoading(false))
   }, [])
@@ -33,6 +34,21 @@ export function ServicesPage() {
         service.currentStatus.toLowerCase().includes(normalized),
     )
   }, [query, services])
+
+  async function handleActiveChange(service: MonitoredService) {
+    try {
+      setUpdatingServiceId(service.id)
+      const updated = await setServiceActive(service.id, !service.active)
+      setServices((current) =>
+        current.map((item) => (item.id === updated.id ? updated : item)),
+      )
+      setError(null)
+    } catch (updateError) {
+      setError(getApiErrorMessage(updateError, 'Unable to update monitoring state'))
+    } finally {
+      setUpdatingServiceId(null)
+    }
+  }
 
   return (
     <section className="panel full-panel">
@@ -57,8 +73,16 @@ export function ServicesPage() {
         </label>
         <span>{filteredServices.length} services</span>
       </div>
-      {error && <div className="notice danger">Could not load services: {error}</div>}
-      {loading ? <div className="loading-panel">Loading services...</div> : <ServiceTable services={filteredServices} />}
+      {error && <div className="notice danger">{error}</div>}
+      {loading ? (
+        <div className="loading-panel">Loading services...</div>
+      ) : (
+        <ServiceTable
+          services={filteredServices}
+          onActiveChange={handleActiveChange}
+          updatingServiceId={updatingServiceId}
+        />
+      )}
     </section>
   )
 }

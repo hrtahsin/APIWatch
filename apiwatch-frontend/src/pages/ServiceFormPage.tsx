@@ -8,8 +8,11 @@ const defaultForm: ServiceInput = {
   name: '',
   url: '',
   method: 'GET',
-  expectedStatusCode: 200,
+  expectedStatusMin: 200,
+  expectedStatusMax: 299,
   timeoutMs: 2000,
+  checkIntervalSeconds: 60,
+  responseBodyContains: '',
   failureThreshold: 3,
   active: true,
   customHeaders: null,
@@ -60,8 +63,11 @@ export function ServiceFormPage() {
           name: service.name,
           url: service.url,
           method: service.method,
-          expectedStatusCode: service.expectedStatusCode,
+          expectedStatusMin: service.expectedStatusMin,
+          expectedStatusMax: service.expectedStatusMax,
           timeoutMs: service.timeoutMs,
+          checkIntervalSeconds: service.checkIntervalSeconds,
+          responseBodyContains: service.responseBodyContains ?? '',
           failureThreshold: service.failureThreshold,
           active: service.active,
           customHeaders: null,
@@ -94,6 +100,9 @@ export function ServiceFormPage() {
           : null
       if (form.authType !== 'NONE' && !form.authValue && !serviceId) {
         throw new Error('Authentication value is required.')
+      }
+      if (form.expectedStatusMin > form.expectedStatusMax) {
+        throw new Error('Expected status minimum cannot exceed the maximum.')
       }
       const input = { ...form, customHeaders }
       const saved = serviceId ? await updateService(serviceId, input) : await createService(input)
@@ -150,13 +159,23 @@ export function ServiceFormPage() {
             </select>
           </label>
           <label>
-            <span>Expected status</span>
+            <span>Expected status from</span>
             <input
               min={100}
               max={599}
               type="number"
-              value={form.expectedStatusCode}
-              onChange={(event) => update('expectedStatusCode', Number(event.target.value))}
+              value={form.expectedStatusMin}
+              onChange={(event) => update('expectedStatusMin', Number(event.target.value))}
+            />
+          </label>
+          <label>
+            <span>Expected status through</span>
+            <input
+              min={100}
+              max={599}
+              type="number"
+              value={form.expectedStatusMax}
+              onChange={(event) => update('expectedStatusMax', Number(event.target.value))}
             />
           </label>
           <label>
@@ -170,6 +189,16 @@ export function ServiceFormPage() {
             />
           </label>
           <label>
+            <span>Check interval seconds</span>
+            <input
+              min={10}
+              max={86400}
+              type="number"
+              value={form.checkIntervalSeconds}
+              onChange={(event) => update('checkIntervalSeconds', Number(event.target.value))}
+            />
+          </label>
+          <label>
             <span>Failure threshold</span>
             <input
               min={1}
@@ -180,6 +209,17 @@ export function ServiceFormPage() {
             />
           </label>
         </div>
+
+        <label>
+          <span>Response body must contain</span>
+          <input
+            value={form.responseBodyContains}
+            onChange={(event) => update('responseBodyContains', event.target.value)}
+            placeholder={'Optional, for example: "status":"ok"'}
+            maxLength={500}
+          />
+          <small>Leave blank to validate only the HTTP status range.</small>
+        </label>
 
         <label className="toggle-row">
           <input
