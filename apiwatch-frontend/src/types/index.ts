@@ -1,6 +1,8 @@
 export type HealthStatus = 'UP' | 'DOWN' | 'SLOW' | 'RATE_LIMITED' | 'UNKNOWN'
 export type IncidentStatus = 'ACTIVE' | 'RESOLVED'
 export type RequestAuthType = 'NONE' | 'BEARER' | 'API_KEY'
+export type NotificationEventType = 'INCIDENT_OPENED' | 'INCIDENT_RESOLVED'
+export type NotificationDeliveryStatus = 'SENT' | 'FAILED' | 'SKIPPED_COOLDOWN'
 export type FailureType =
   | 'HTTP_STATUS'
   | 'RESPONSE_VALIDATION'
@@ -107,4 +109,30 @@ export interface ServiceInput {
   authHeaderName: string
   authValue: string
   clearAuthSecret: boolean
+}
+
+export interface NotificationSettings {
+  enabled: boolean
+  webhookConfigured: boolean
+  webhookDisplay: string | null
+  cooldownSeconds: number
+  updatedAt: string | null
+}
+
+export interface NotificationSettingsInput {
+  enabled: boolean
+  webhookUrl: string
+  clearWebhook: boolean
+  cooldownSeconds: number
+}
+
+export interface NotificationDelivery {
+  id: number
+  incidentId: number
+  serviceId: number
+  eventType: NotificationEventType
+  status: NotificationDeliveryStatus
+  httpStatusCode: number | null
+  errorMessage: string | null
+  attemptedAt: string
 }

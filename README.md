@@ -20,6 +20,8 @@ Operations teams need a fast answer to four questions: what is failing, when it 
 - Configurable timeout and failure threshold
 - Automatic incident creation after consecutive failures
 - Automatic and manual incident resolution
+- Encrypted incident webhook configuration with delivery cooldowns
+- Notifications for incident open and resolution events
 - Uptime, average latency, P95 latency, and failure metrics
 - PostgreSQL persistence with Flyway migrations
 - Responsive React dashboard with charts and filtering
@@ -172,6 +174,9 @@ Useful endpoints:
 | `GET` | `/api/services/{id}/metrics?windowHours=24` | Get service metrics |
 | `GET` | `/api/incidents?status=ACTIVE` | List or filter incidents |
 | `PATCH` | `/api/incidents/{id}/resolve` | Resolve an incident |
+| `GET` | `/api/notification-settings` | Get masked webhook configuration |
+| `PUT` | `/api/notification-settings` | Configure webhook delivery and cooldown |
+| `GET` | `/api/notification-settings/deliveries` | Review recent delivery attempts |
 | `GET` | `/api/dashboard/summary` | Get platform summary metrics |
 
 ## Data Model
@@ -192,6 +197,12 @@ Indexes support recent health-check lookups and incident filtering. A partial un
 6. Rate-limited services pause until `Retry-After` or provider reset metadata allows a retry.
 7. The configured number of consecutive `DOWN` checks creates one active incident.
 8. A later `UP` check resolves the active incident and records its duration.
+9. Enabled webhooks receive structured JSON when incidents open or resolve.
+10. Repeated events for the same service are suppressed during the configured cooldown.
+
+Webhook URLs are encrypted with `APIWATCH_ENCRYPTION_KEY` and never returned by
+the API. Delivery attempts record success, failure, HTTP status, and cooldown
+suppression for operational review.
 
 ## Testing
 

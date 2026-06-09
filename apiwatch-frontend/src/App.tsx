@@ -6,6 +6,7 @@ import { NotFoundPage } from './pages/NotFoundPage'
 import { ServiceDetailPage } from './pages/ServiceDetailPage'
 import { ServiceFormPage } from './pages/ServiceFormPage'
 import { ServicesPage } from './pages/ServicesPage'
+import { SettingsPage } from './pages/SettingsPage'
 
 const router = createBrowserRouter([
   {
@@ -19,6 +20,7 @@ const router = createBrowserRouter([
       { path: 'services/:id', element: <ServiceDetailPage /> },
       { path: 'services/:id/edit', element: <ServiceFormPage /> },
       { path: 'incidents', element: <IncidentsPage /> },
+      { path: 'settings', element: <SettingsPage /> },
     ],
   },
 ])

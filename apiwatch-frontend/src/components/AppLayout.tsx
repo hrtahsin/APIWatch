@@ -22,6 +22,7 @@ const titles: Record<string, { title: string; eyebrow: string }> = {
   '/': { title: 'System overview', eyebrow: 'Operations center' },
   '/services': { title: 'Monitored services', eyebrow: 'Service registry' },
   '/incidents': { title: 'Incident timeline', eyebrow: 'Reliability history' },
+  '/settings': { title: 'Notification settings', eyebrow: 'Integrations' },
   '/services/new': { title: 'Add a service', eyebrow: 'Service registry' },
 }
 
@@ -73,10 +74,14 @@ export function AppLayout() {
             <Plus size={18} />
             <span>Add service</span>
           </NavLink>
-          <button className="nav-item disabled" type="button" title="Settings are planned">
+          <NavLink
+            to="/settings"
+            onClick={() => setMobileOpen(false)}
+            className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+          >
             <Settings size={18} />
             <span>Settings</span>
-          </button>
+          </NavLink>
         </nav>
 
         <div className="sidebar-status">

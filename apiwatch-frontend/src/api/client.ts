@@ -5,6 +5,9 @@ import type {
   Incident,
   IncidentStatus,
   MonitoredService,
+  NotificationDelivery,
+  NotificationSettings,
+  NotificationSettingsInput,
   ServiceInput,
   ServiceMetrics,
 } from '../types'
@@ -31,6 +34,16 @@ export function getApiErrorMessage(error: unknown, fallback: string): string {
 
 const demoMode = import.meta.env.VITE_DEMO_MODE === 'true'
 const now = Date.now()
+
+let demoNotificationSettings: NotificationSettings = {
+  enabled: false,
+  webhookConfigured: false,
+  webhookDisplay: null,
+  cooldownSeconds: 300,
+  updatedAt: null,
+}
+
+const demoNotificationDeliveries: NotificationDelivery[] = []
 
 let demoServices: MonitoredService[] = [
   {
@@ -207,6 +220,37 @@ function demoChecks(serviceId: number): HealthCheck[] {
 export async function getServices(): Promise<MonitoredService[]> {
   if (demoMode) return demoServices
   return (await http.get<MonitoredService[]>('/services')).data
+}
+
+export async function getNotificationSettings(): Promise<NotificationSettings> {
+  if (demoMode) return demoNotificationSettings
+  return (await http.get<NotificationSettings>('/notification-settings')).data
+}
+
+export async function updateNotificationSettings(
+  input: NotificationSettingsInput,
+): Promise<NotificationSettings> {
+  if (demoMode) {
+    const webhookConfigured = input.clearWebhook
+      ? false
+      : Boolean(input.webhookUrl) || demoNotificationSettings.webhookConfigured
+    demoNotificationSettings = {
+      enabled: input.enabled && webhookConfigured,
+      webhookConfigured,
+      webhookDisplay: webhookConfigured ? 'https://hooks.example.com/****' : null,
+      cooldownSeconds: input.cooldownSeconds,
+      updatedAt: new Date().toISOString(),
+    }
+    return demoNotificationSettings
+  }
+  return (await http.put<NotificationSettings>('/notification-settings', input)).data
+}
+
+export async function getNotificationDeliveries(): Promise<NotificationDelivery[]> {
+  if (demoMode) return demoNotificationDeliveries
+  return (
+    await http.get<NotificationDelivery[]>('/notification-settings/deliveries')
+  ).data
 }
 
 export async function getService(id: number): Promise<MonitoredService> {

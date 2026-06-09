@@ -646,6 +646,22 @@ button {
   background: #fff1f0;
 }
 
+.notice.success {
+  color: #087443;
+  border: 1px solid #abefc6;
+  background: #ecfdf3;
+}
+
+.settings-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  gap: 22px;
+}
+
+.settings-save {
+  justify-self: flex-start;
+}
+
 .delete-confirmation {
   display: flex;
   grid-column: 1 / -1;
@@ -1002,7 +1018,8 @@ button {
   }
 
   .dashboard-grid,
-  .detail-grid {
+  .detail-grid,
+  .settings-grid {
     grid-template-columns: 1fr;
   }
 
