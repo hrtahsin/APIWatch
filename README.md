@@ -13,6 +13,8 @@ Operations teams need a fast answer to four questions: what is failing, when it 
 - `UP`, `SLOW`, `DOWN`, and `UNKNOWN` service states
 - Dedicated `RATE_LIMITED` state with retry metadata and automatic check pauses
 - Failure diagnostics for HTTP, timeout, DNS, connection, and network errors
+- Encrypted Bearer tokens, API keys, and custom request headers
+- Masked credential metadata in API responses and the dashboard
 - Configurable expected status, timeout, and failure threshold
 - Automatic incident creation after consecutive failures
 - Automatic and manual incident resolution
@@ -63,6 +65,15 @@ Requirements: Docker with Compose support.
 ```bash
 cp .env.example .env
 docker compose up --build
+```
+
+`APIWATCH_ENCRYPTION_KEY` must be a Base64-encoded 32-byte key. The example
+contains a development-only value; replace it before deploying APIWatch.
+
+Generate a production key with:
+
+```bash
+openssl rand -base64 32
 ```
 
 Open:
@@ -128,9 +139,19 @@ curl -X POST http://localhost:8080/api/services \
     "expectedStatusCode": 200,
     "timeoutMs": 2000,
     "failureThreshold": 3,
-    "active": true
+    "active": true,
+    "authType": "BEARER",
+    "authValue": "replace-with-a-token",
+    "customHeaders": {
+      "X-Tenant-ID": "customer-7"
+    }
   }'
 ```
+
+Credential values are encrypted at rest and are never included in service
+responses. On update, omit the values to keep existing credentials, provide new
+values to replace them, or set `clearAuthSecret` to `true` to remove stored
+authentication.
 
 Useful endpoints:
 
@@ -199,4 +220,3 @@ Published image names:
 
 - `ghcr.io/<owner>/apiwatch-backend`
 - `ghcr.io/<owner>/apiwatch-frontend`
-

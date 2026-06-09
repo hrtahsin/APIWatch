@@ -43,7 +43,8 @@ a {
 
 button,
 input,
-select {
+select,
+textarea {
   font: inherit;
 }
 
@@ -858,12 +859,24 @@ button {
 }
 
 .service-form input,
-.service-form select {
+.service-form select,
+.service-form textarea {
   min-height: 46px;
   border: 1px solid var(--border);
   border-radius: 14px;
   padding: 0 13px;
   background: #fff;
+}
+
+.service-form textarea {
+  min-height: 110px;
+  padding: 12px 13px;
+  resize: vertical;
+}
+
+.service-form label > small {
+  color: var(--muted);
+  font-weight: 500;
 }
 
 .form-grid {
@@ -894,6 +907,73 @@ button {
   margin-top: 4px;
   color: var(--muted);
   font-weight: 500;
+}
+
+.form-section {
+  display: grid;
+  gap: 16px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 18px;
+  background: #f8fafc;
+}
+
+.form-section h3 {
+  margin: 4px 0 0;
+}
+
+.form-section > div > p {
+  margin: 5px 0 0;
+  color: var(--muted);
+}
+
+.credential-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.credential-secret {
+  grid-column: span 2;
+}
+
+.compact-toggle {
+  padding: 12px;
+  background: #fff;
+}
+
+.stored-secret-summary {
+  border: 1px dashed #cbd5e1;
+  border-radius: 14px;
+  padding: 13px;
+  background: #fff;
+}
+
+.stored-secret-summary > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 9px 0;
+}
+
+.stored-secret-summary span {
+  border-radius: 999px;
+  padding: 5px 9px;
+  color: #475467;
+  background: #eef2f7;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.stored-secret-summary label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.stored-secret-summary input {
+  width: 16px;
+  min-height: 16px;
 }
 
 .form-actions {
