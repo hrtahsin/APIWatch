@@ -44,6 +44,9 @@ public class MonitoredService {
     @Column(nullable = false)
     private boolean active = true;
 
+    @Column(name = "rate_limited_until")
+    private Instant rateLimitedUntil;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -120,6 +123,14 @@ public class MonitoredService {
 
     public void setActive(boolean active) {
         this.active = active;
+    }
+
+    public Instant getRateLimitedUntil() {
+        return rateLimitedUntil;
+    }
+
+    public void setRateLimitedUntil(Instant rateLimitedUntil) {
+        this.rateLimitedUntil = rateLimitedUntil;
     }
 
     public Instant getCreatedAt() {

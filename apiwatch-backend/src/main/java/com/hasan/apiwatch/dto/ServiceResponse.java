@@ -1,5 +1,6 @@
 package com.hasan.apiwatch.dto;
 
+import com.hasan.apiwatch.enums.FailureType;
 import com.hasan.apiwatch.enums.HealthStatus;
 import com.hasan.apiwatch.enums.HttpMethodType;
 
@@ -17,6 +18,10 @@ public record ServiceResponse(
         HealthStatus currentStatus,
         Instant lastCheckedAt,
         Long lastResponseTimeMs,
+        Integer lastHttpStatusCode,
+        FailureType lastFailureType,
+        String lastErrorMessage,
+        Instant rateLimitedUntil,
         boolean activeIncident,
         Instant createdAt,
         Instant updatedAt

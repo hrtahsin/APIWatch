@@ -351,7 +351,7 @@ button {
 .summary-grid {
   display: grid;
   grid-column: 1 / -1;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
   gap: 14px;
 }
 
@@ -591,6 +591,11 @@ button {
   background: #ffe9e7;
 }
 
+.status-rate_limited {
+  color: #9a6700;
+  background: #fff4d4;
+}
+
 .status-unknown {
   color: #5f6b7a;
   background: #eef2f7;
@@ -599,6 +604,16 @@ button {
 .reason-cell {
   max-width: 380px;
   color: #46536a;
+}
+
+.reason-cell small {
+  display: block;
+  max-width: 320px;
+  margin-top: 4px;
+  overflow: hidden;
+  color: var(--muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .chart-container {
@@ -648,6 +663,44 @@ button {
   display: flex;
   flex-shrink: 0;
   gap: 10px;
+}
+
+.diagnostic-panel {
+  display: flex;
+  grid-column: 1 / -1;
+  align-items: flex-start;
+  gap: 14px;
+  border: 1px solid #fedf89;
+  border-radius: 18px;
+  padding: 18px;
+  color: #93370d;
+  background: #fffaeb;
+}
+
+.diagnostic-panel h3 {
+  margin: 4px 0 0;
+  color: #7a2e0e;
+}
+
+.diagnostic-panel p {
+  margin: 6px 0 0;
+  color: #93370d;
+}
+
+.diagnostic-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.diagnostic-meta span {
+  border: 1px solid #fedf89;
+  border-radius: 999px;
+  padding: 5px 9px;
+  background: rgba(255, 255, 255, 0.65);
+  font-size: 12px;
+  font-weight: 800;
 }
 
 .table-toolbar {

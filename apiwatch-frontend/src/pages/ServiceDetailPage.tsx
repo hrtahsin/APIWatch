@@ -1,4 +1,4 @@
-import { Play, ShieldAlert, Trash2 } from 'lucide-react'
+import { AlertTriangle, Clock3, Play, ShieldAlert, Trash2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
@@ -13,8 +13,23 @@ import {
 import { IncidentTable } from '../components/IncidentTable'
 import { LatencyChart } from '../components/LatencyChart'
 import { StatusBadge } from '../components/StatusBadge'
-import type { HealthCheck, Incident, MonitoredService, ServiceMetrics } from '../types'
+import type {
+  FailureType,
+  HealthCheck,
+  Incident,
+  MonitoredService,
+  ServiceMetrics,
+} from '../types'
 import { formatDate } from '../utils/format'
+
+const failureLabels: Record<FailureType, string> = {
+  HTTP_STATUS: 'Unexpected HTTP status',
+  TIMEOUT: 'Request timed out',
+  DNS_FAILURE: 'DNS lookup failed',
+  CONNECTION_FAILURE: 'Connection failed',
+  RATE_LIMITED: 'Rate limit reached',
+  NETWORK_ERROR: 'Network request failed',
+}
 
 export function ServiceDetailPage() {
   const serviceId = Number(useParams().id)
@@ -61,7 +76,7 @@ export function ServiceDetailPage() {
       await load()
       setError(null)
     } catch (runError) {
-      setError(runError instanceof Error ? runError.message : 'Health check failed')
+      setError(getApiErrorMessage(runError, 'Health check failed'))
     } finally {
       setRunning(false)
     }
@@ -81,6 +96,11 @@ export function ServiceDetailPage() {
 
   if (loading) return <div className="panel loading-panel">Loading service details...</div>
   if (!service) return <div className="notice danger">Service not found.</div>
+
+  const rateLimitedUntil = service.rateLimitedUntil
+    ? new Date(service.rateLimitedUntil)
+    : null
+  const checksPaused = rateLimitedUntil !== null && rateLimitedUntil.getTime() > Date.now()
 
   return (
     <div className="detail-grid">
@@ -110,12 +130,39 @@ export function ServiceDetailPage() {
           <Link className="secondary-button" to={`/services/${service.id}/edit`}>
             Edit configuration
           </Link>
-          <button className="primary-button" onClick={handleRunCheck} disabled={running} type="button">
-            <Play size={17} />
-            {running ? 'Running...' : 'Run check'}
+          <button
+            className="primary-button"
+            onClick={handleRunCheck}
+            disabled={running || checksPaused}
+            type="button"
+          >
+            {checksPaused ? <Clock3 size={17} /> : <Play size={17} />}
+            {running ? 'Running...' : checksPaused ? 'Rate limit pause' : 'Run check'}
           </button>
         </div>
       </section>
+
+      {(service.lastFailureType || checksPaused) && (
+        <section className="diagnostic-panel">
+          <AlertTriangle size={22} />
+          <div>
+            <span className="eyebrow">Latest check diagnosis</span>
+            <h3>
+              {service.lastFailureType
+                ? failureLabels[service.lastFailureType]
+                : 'Checks temporarily paused'}
+            </h3>
+            <p>
+              {service.lastErrorMessage ??
+                `Automatic and manual checks resume after ${formatDate(service.rateLimitedUntil)}.`}
+            </p>
+            <div className="diagnostic-meta">
+              <span>HTTP {service.lastHttpStatusCode ?? 'not received'}</span>
+              {checksPaused && <span>Retry after {formatDate(service.rateLimitedUntil)}</span>}
+            </div>
+          </div>
+        </section>
+      )}
 
       {confirmingDelete && (
         <section className="delete-confirmation">
@@ -185,6 +232,7 @@ export function ServiceDetailPage() {
                 <th>Status</th>
                 <th>HTTP</th>
                 <th>Latency</th>
+                <th>Failure reason</th>
                 <th>Checked</th>
               </tr>
             </thead>
@@ -196,6 +244,10 @@ export function ServiceDetailPage() {
                   </td>
                   <td className="metric-cell">{check.httpStatusCode ?? '—'}</td>
                   <td className="metric-cell">{check.responseTimeMs ?? '—'} ms</td>
+                  <td className="reason-cell">
+                    {check.failureType ? failureLabels[check.failureType] : '—'}
+                    {check.errorMessage && <small>{check.errorMessage}</small>}
+                  </td>
                   <td className="muted-cell">{formatDate(check.checkedAt)}</td>
                 </tr>
               ))}

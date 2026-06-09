@@ -10,6 +10,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.time.Instant;
 
 @Component
 @ConditionalOnProperty(
@@ -40,6 +41,12 @@ public class MonitorScheduler {
         List<MonitoredService> activeServices = serviceRepository.findAllByActiveTrueOrderByNameAsc();
         log.info("Starting scheduled monitoring run for {} services", activeServices.size());
         for (MonitoredService service : activeServices) {
+            if (service.getRateLimitedUntil() != null
+                    && service.getRateLimitedUntil().isAfter(Instant.now())) {
+                log.info("Skipping rate-limited service {} ({}) until {}",
+                        service.getName(), service.getId(), service.getRateLimitedUntil());
+                continue;
+            }
             try {
                 healthCheckRunner.run(service);
             } catch (Exception exception) {
