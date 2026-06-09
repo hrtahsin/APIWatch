@@ -1,6 +1,7 @@
 package com.hasan.apiwatch.service;
 
 import com.hasan.apiwatch.dto.IncidentResponse;
+import com.hasan.apiwatch.dto.PageResponse;
 import com.hasan.apiwatch.entity.HealthCheck;
 import com.hasan.apiwatch.entity.Incident;
 import com.hasan.apiwatch.entity.MonitoredService;
@@ -12,6 +13,7 @@ import com.hasan.apiwatch.repository.HealthCheckRepository;
 import com.hasan.apiwatch.repository.IncidentRepository;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -54,7 +56,7 @@ public class IncidentService {
                 healthCheckRepository.findByMonitoredServiceIdOrderByCheckedAtDesc(
                         service.getId(),
                         PageRequest.of(0, threshold)
-                );
+                ).getContent();
         boolean thresholdReached = recentChecks.size() == threshold
                 && recentChecks.stream().allMatch(check -> check.getStatus() == HealthStatus.DOWN);
 
@@ -74,21 +76,41 @@ public class IncidentService {
     }
 
     @Transactional(readOnly = true)
-    public List<IncidentResponse> findAll(IncidentStatus status, Long serviceId) {
-        List<Incident> incidents;
+    public PageResponse<IncidentResponse> findAll(
+            IncidentStatus status,
+            Long serviceId,
+            int page,
+            int size
+    ) {
+        PageRequest pageable = PageRequest.of(
+                Math.max(page, 0),
+                Math.min(Math.max(size, 1), 100)
+        );
+        Page<Incident> incidents;
         if (status != null && serviceId != null) {
             incidents = incidentRepository.findByMonitoredServiceIdAndStatusOrderByStartedAtDesc(
                     serviceId,
-                    status
+                    status,
+                    pageable
             );
         } else if (status != null) {
-            incidents = incidentRepository.findByStatusOrderByStartedAtDesc(status);
+            incidents = incidentRepository.findByStatusOrderByStartedAtDesc(status, pageable);
         } else if (serviceId != null) {
-            incidents = incidentRepository.findByMonitoredServiceIdOrderByStartedAtDesc(serviceId);
+            incidents = incidentRepository.findByMonitoredServiceIdOrderByStartedAtDesc(
+                    serviceId,
+                    pageable
+            );
         } else {
-            incidents = incidentRepository.findAllByOrderByStartedAtDesc();
+            incidents = incidentRepository.findAll(PageRequest.of(
+                    pageable.getPageNumber(),
+                    pageable.getPageSize(),
+                    org.springframework.data.domain.Sort.by(
+                            org.springframework.data.domain.Sort.Direction.DESC,
+                            "startedAt"
+                    )
+            ));
         }
-        return incidents.stream().map(this::toResponse).toList();
+        return PageResponse.from(incidents.map(this::toResponse));
     }
 
     @Transactional(readOnly = true)

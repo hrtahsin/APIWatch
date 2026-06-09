@@ -12,6 +12,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -66,7 +67,7 @@ class IncidentServiceTest {
         when(healthCheckRepository.findByMonitoredServiceIdOrderByCheckedAtDesc(
                 eq(7L),
                 any(Pageable.class)
-        )).thenReturn(recent);
+        )).thenReturn(new PageImpl<>(recent));
         when(incidentRepository.findFirstByMonitoredServiceIdAndStatus(
                 7L,
                 IncidentStatus.ACTIVE
@@ -88,7 +89,9 @@ class IncidentServiceTest {
         when(healthCheckRepository.findByMonitoredServiceIdOrderByCheckedAtDesc(
                 eq(7L),
                 any(Pageable.class)
-        )).thenReturn(List.of(latest, check(HealthStatus.DOWN, Instant.now())));
+        )).thenReturn(new PageImpl<>(
+                List.of(latest, check(HealthStatus.DOWN, Instant.now()))
+        ));
 
         incidentService.evaluate(service, latest);
 

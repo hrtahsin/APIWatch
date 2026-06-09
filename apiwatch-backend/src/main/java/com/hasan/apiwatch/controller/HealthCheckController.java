@@ -1,6 +1,7 @@
 package com.hasan.apiwatch.controller;
 
 import com.hasan.apiwatch.dto.HealthCheckResponse;
+import com.hasan.apiwatch.dto.PageResponse;
 import com.hasan.apiwatch.service.HealthCheckQueryService;
 import com.hasan.apiwatch.service.HealthCheckRunner;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -9,8 +10,6 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-
-import java.util.List;
 
 @RestController
 @RequestMapping("/api/services/{serviceId}")
@@ -33,10 +32,11 @@ public class HealthCheckController {
     }
 
     @GetMapping("/health-checks")
-    List<HealthCheckResponse> findRecent(
+    PageResponse<HealthCheckResponse> findRecent(
             @PathVariable Long serviceId,
-            @RequestParam(defaultValue = "50") int limit
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size
     ) {
-        return healthCheckQueryService.findRecent(serviceId, limit);
+        return healthCheckQueryService.findRecent(serviceId, page, size);
     }
 }

@@ -1,6 +1,7 @@
 package com.hasan.apiwatch.service;
 
 import com.hasan.apiwatch.dto.CreateServiceRequest;
+import com.hasan.apiwatch.dto.PageResponse;
 import com.hasan.apiwatch.dto.ServiceResponse;
 import com.hasan.apiwatch.dto.UpdateServiceRequest;
 import com.hasan.apiwatch.entity.HealthCheck;
@@ -13,10 +14,12 @@ import com.hasan.apiwatch.exception.ResourceNotFoundException;
 import com.hasan.apiwatch.repository.HealthCheckRepository;
 import com.hasan.apiwatch.repository.IncidentRepository;
 import com.hasan.apiwatch.repository.MonitoredServiceRepository;
+import com.hasan.apiwatch.repository.NotificationDeliveryRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 
-import java.util.List;
 import java.time.Instant;
 
 @Service
@@ -25,6 +28,7 @@ public class ServiceMonitorService {
     private final MonitoredServiceRepository serviceRepository;
     private final HealthCheckRepository healthCheckRepository;
     private final IncidentRepository incidentRepository;
+    private final NotificationDeliveryRepository notificationDeliveryRepository;
     private final ServiceCredentialService credentialService;
     private final UrlSafetyService urlSafetyService;
 
@@ -32,12 +36,14 @@ public class ServiceMonitorService {
             MonitoredServiceRepository serviceRepository,
             HealthCheckRepository healthCheckRepository,
             IncidentRepository incidentRepository,
+            NotificationDeliveryRepository notificationDeliveryRepository,
             ServiceCredentialService credentialService,
             UrlSafetyService urlSafetyService
     ) {
         this.serviceRepository = serviceRepository;
         this.healthCheckRepository = healthCheckRepository;
         this.incidentRepository = incidentRepository;
+        this.notificationDeliveryRepository = notificationDeliveryRepository;
         this.credentialService = credentialService;
         this.urlSafetyService = urlSafetyService;
     }
@@ -79,10 +85,13 @@ public class ServiceMonitorService {
     }
 
     @Transactional(readOnly = true)
-    public List<ServiceResponse> findAll() {
-        return serviceRepository.findAllByOrderByNameAsc().stream()
-                .map(this::toResponse)
-                .toList();
+    public PageResponse<ServiceResponse> findAll(int page, int size) {
+        var services = serviceRepository.findAll(PageRequest.of(
+                Math.max(page, 0),
+                Math.min(Math.max(size, 1), 100),
+                Sort.by(Sort.Direction.ASC, "name")
+        )).map(this::toResponse);
+        return PageResponse.from(services);
     }
 
     @Transactional(readOnly = true)
@@ -132,7 +141,11 @@ public class ServiceMonitorService {
 
     @Transactional
     public void delete(Long id) {
-        serviceRepository.delete(getEntity(id));
+        MonitoredService service = getEntity(id);
+        notificationDeliveryRepository.deleteByServiceId(id);
+        healthCheckRepository.deleteByMonitoredServiceId(id);
+        incidentRepository.deleteByMonitoredServiceId(id);
+        serviceRepository.delete(service);
     }
 
     @Transactional

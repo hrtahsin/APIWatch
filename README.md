@@ -26,6 +26,8 @@ Operations teams need a fast answer to four questions: what is failing, when it 
 - SSRF protection for monitored URLs and notification webhooks
 - Private-network blocking with an explicit hostname allowlist
 - Uptime, average latency, P95 latency, and failure metrics
+- Paginated service, health-check, and incident history endpoints
+- Configurable retention cleanup for checks, resolved incidents, and notifications
 - PostgreSQL persistence with Flyway migrations
 - Responsive React dashboard with charts and filtering
 - Docker Compose full-stack environment
@@ -173,14 +175,14 @@ Useful endpoints:
 | --- | --- | --- |
 | `POST` | `/api/services` | Register a service |
 | `GET` | `/api/auth/me` | Return the authenticated user and role |
-| `GET` | `/api/services` | List services with current state |
+| `GET` | `/api/services?page=0&size=20` | List services with current state |
 | `PUT` | `/api/services/{id}` | Update monitoring configuration |
 | `PATCH` | `/api/services/{id}/active` | Pause or resume scheduled checks |
 | `DELETE` | `/api/services/{id}` | Delete a service and its history |
 | `POST` | `/api/services/{id}/check` | Trigger a health check |
-| `GET` | `/api/services/{id}/health-checks?limit=50` | Get recent checks |
+| `GET` | `/api/services/{id}/health-checks?page=0&size=20` | Get recent checks |
 | `GET` | `/api/services/{id}/metrics?windowHours=24` | Get service metrics |
-| `GET` | `/api/incidents?status=ACTIVE` | List or filter incidents |
+| `GET` | `/api/incidents?status=ACTIVE&page=0&size=20` | List or filter incidents |
 | `PATCH` | `/api/incidents/{id}/resolve` | Resolve an incident |
 | `GET` | `/api/notification-settings` | Get masked webhook configuration |
 | `PUT` | `/api/notification-settings` | Configure webhook delivery and cooldown |
@@ -194,6 +196,14 @@ Useful endpoints:
 - `incidents`: active and resolved outage records
 
 Indexes support recent health-check lookups and incident filtering. A partial unique index prevents duplicate active incidents for the same service.
+
+Paged endpoints return `content`, `page`, `size`, `totalElements`, and
+`totalPages`. Page indexes start at zero and page size is capped at 100.
+
+History cleanup runs daily at 02:30 by default. Configure
+`APIWATCH_RETENTION_HEALTH_CHECK_DAYS`, `APIWATCH_RETENTION_INCIDENT_DAYS`,
+`APIWATCH_RETENTION_NOTIFICATION_DAYS`, and `APIWATCH_RETENTION_CRON`, or set
+`APIWATCH_RETENTION_ENABLED=false` to disable cleanup.
 
 ## Incident Rules
 
@@ -239,6 +249,7 @@ Frontend:
 
 ```bash
 cd apiwatch-frontend
+npm test
 npm run lint
 npm run build
 ```
@@ -251,7 +262,7 @@ pushes to `main`, and version tags such as `v1.0.0`.
 Pipeline jobs:
 
 - Backend: sets up Java 21 and runs `mvn -B clean verify`
-- Frontend: sets up Node.js 22, runs `npm ci`, `npm run lint`, and `npm run build`
+- Frontend: sets up Node.js 22, runs `npm ci`, `npm run lint`, `npm test`, and `npm run build`
 - Docker: builds backend and frontend Docker images after tests pass
 - CD: publishes images to GitHub Container Registry on pushes to `main` and tags
 
