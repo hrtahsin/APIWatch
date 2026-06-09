@@ -4,5 +4,6 @@ public enum HealthStatus {
     UP,
     DOWN,
     SLOW,
+    RATE_LIMITED,
     UNKNOWN
 }

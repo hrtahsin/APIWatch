@@ -49,6 +49,9 @@ public class MetricsService {
         long up = latestChecks.stream().filter(check -> hasStatus(check, HealthStatus.UP)).count();
         long slow = latestChecks.stream().filter(check -> hasStatus(check, HealthStatus.SLOW)).count();
         long down = latestChecks.stream().filter(check -> hasStatus(check, HealthStatus.DOWN)).count();
+        long rateLimited = latestChecks.stream()
+                .filter(check -> hasStatus(check, HealthStatus.RATE_LIMITED))
+                .count();
         long unknown = latestChecks.stream().filter(check -> check == null).count();
         double averageResponse = latestChecks.stream()
                 .filter(check -> check != null && check.getResponseTimeMs() != null)
@@ -63,6 +66,7 @@ public class MetricsService {
                 up,
                 slow,
                 down,
+                rateLimited,
                 unknown,
                 incidentRepository.countByStatus(IncidentStatus.ACTIVE),
                 round(averageResponse),
@@ -82,7 +86,12 @@ public class MetricsService {
                 );
         long failed = checks.stream().filter(check -> check.getStatus() == HealthStatus.DOWN).count();
         long slow = checks.stream().filter(check -> check.getStatus() == HealthStatus.SLOW).count();
-        double uptime = checks.isEmpty() ? 0 : percentage(checks.size() - failed, checks.size());
+        long evaluableChecks = checks.stream()
+                .filter(check -> check.getStatus() != HealthStatus.RATE_LIMITED)
+                .count();
+        double uptime = evaluableChecks == 0
+                ? 0
+                : percentage(evaluableChecks - failed, evaluableChecks);
         List<Long> responseTimes = checks.stream()
                 .map(HealthCheck::getResponseTimeMs)
                 .filter(value -> value != null)

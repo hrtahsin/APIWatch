@@ -41,7 +41,11 @@ public class HealthCheckQueryService {
                 check.getStatus(),
                 check.getHttpStatusCode(),
                 check.getResponseTimeMs(),
+                check.getFailureType(),
                 check.getErrorMessage(),
+                check.getRetryAfterSeconds(),
+                check.getRateLimitRemaining(),
+                check.getRateLimitResetAt(),
                 check.getCheckedAt()
         );
     }

@@ -17,6 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.time.Instant;
 
 @Service
 public class ServiceMonitorService {
@@ -94,6 +95,16 @@ public class ServiceMonitorService {
         serviceRepository.delete(getEntity(id));
     }
 
+    @Transactional
+    public void setRateLimitedUntil(Long id, Instant rateLimitedUntil) {
+        getEntity(id).setRateLimitedUntil(rateLimitedUntil);
+    }
+
+    @Transactional
+    public void clearRateLimit(Long id) {
+        getEntity(id).setRateLimitedUntil(null);
+    }
+
     @Transactional(readOnly = true)
     public MonitoredService getEntity(Long id) {
         return serviceRepository.findById(id)
@@ -139,6 +150,10 @@ public class ServiceMonitorService {
                 latest == null ? HealthStatus.UNKNOWN : latest.getStatus(),
                 latest == null ? null : latest.getCheckedAt(),
                 latest == null ? null : latest.getResponseTimeMs(),
+                latest == null ? null : latest.getHttpStatusCode(),
+                latest == null ? null : latest.getFailureType(),
+                latest == null ? null : latest.getErrorMessage(),
+                service.getRateLimitedUntil(),
                 activeIncident,
                 service.getCreatedAt(),
                 service.getUpdatedAt()

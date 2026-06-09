@@ -1,6 +1,7 @@
 package com.hasan.apiwatch.entity;
 
 import com.hasan.apiwatch.enums.HealthStatus;
+import com.hasan.apiwatch.enums.FailureType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -40,6 +41,19 @@ public class HealthCheck {
 
     @Column(name = "error_message", columnDefinition = "TEXT")
     private String errorMessage;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "failure_type", length = 30)
+    private FailureType failureType;
+
+    @Column(name = "retry_after_seconds")
+    private Long retryAfterSeconds;
+
+    @Column(name = "rate_limit_remaining")
+    private Long rateLimitRemaining;
+
+    @Column(name = "rate_limit_reset_at")
+    private Instant rateLimitResetAt;
 
     @Column(name = "checked_at", nullable = false, updatable = false)
     private Instant checkedAt;
@@ -93,6 +107,38 @@ public class HealthCheck {
 
     public void setErrorMessage(String errorMessage) {
         this.errorMessage = errorMessage;
+    }
+
+    public FailureType getFailureType() {
+        return failureType;
+    }
+
+    public void setFailureType(FailureType failureType) {
+        this.failureType = failureType;
+    }
+
+    public Long getRetryAfterSeconds() {
+        return retryAfterSeconds;
+    }
+
+    public void setRetryAfterSeconds(Long retryAfterSeconds) {
+        this.retryAfterSeconds = retryAfterSeconds;
+    }
+
+    public Long getRateLimitRemaining() {
+        return rateLimitRemaining;
+    }
+
+    public void setRateLimitRemaining(Long rateLimitRemaining) {
+        this.rateLimitRemaining = rateLimitRemaining;
+    }
+
+    public Instant getRateLimitResetAt() {
+        return rateLimitResetAt;
+    }
+
+    public void setRateLimitResetAt(Instant rateLimitResetAt) {
+        this.rateLimitResetAt = rateLimitResetAt;
     }
 
     public Instant getCheckedAt() {

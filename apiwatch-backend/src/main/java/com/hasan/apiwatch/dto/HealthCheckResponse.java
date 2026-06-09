@@ -1,5 +1,6 @@
 package com.hasan.apiwatch.dto;
 
+import com.hasan.apiwatch.enums.FailureType;
 import com.hasan.apiwatch.enums.HealthStatus;
 
 import java.time.Instant;
@@ -10,7 +11,11 @@ public record HealthCheckResponse(
         HealthStatus status,
         Integer httpStatusCode,
         Long responseTimeMs,
+        FailureType failureType,
         String errorMessage,
+        Long retryAfterSeconds,
+        Long rateLimitRemaining,
+        Instant rateLimitResetAt,
         Instant checkedAt
 ) {
 }

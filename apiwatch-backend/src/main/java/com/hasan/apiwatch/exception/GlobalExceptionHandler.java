@@ -31,6 +31,29 @@ public class GlobalExceptionHandler {
         return error(HttpStatus.BAD_REQUEST, exception.getMessage(), request, Map.of());
     }
 
+    @ExceptionHandler(CheckAlreadyRunningException.class)
+    ResponseEntity<ApiErrorResponse> handleConflict(
+            CheckAlreadyRunningException exception,
+            HttpServletRequest request
+    ) {
+        return error(HttpStatus.CONFLICT, exception.getMessage(), request, Map.of());
+    }
+
+    @ExceptionHandler(ServiceRateLimitedException.class)
+    ResponseEntity<ApiErrorResponse> handleRateLimited(
+            ServiceRateLimitedException exception,
+            HttpServletRequest request
+    ) {
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .header("Retry-After", Long.toString(exception.getRetryAfterSeconds()))
+                .body(errorBody(
+                        HttpStatus.TOO_MANY_REQUESTS,
+                        exception.getMessage(),
+                        request,
+                        Map.of()
+                ));
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     ResponseEntity<ApiErrorResponse> handleValidation(
             MethodArgumentNotValidException exception,
@@ -62,7 +85,16 @@ public class GlobalExceptionHandler {
             HttpServletRequest request,
             Map<String, String> fieldErrors
     ) {
-        ApiErrorResponse body = new ApiErrorResponse(
+        return ResponseEntity.status(status).body(errorBody(status, message, request, fieldErrors));
+    }
+
+    private ApiErrorResponse errorBody(
+            HttpStatus status,
+            String message,
+            HttpServletRequest request,
+            Map<String, String> fieldErrors
+    ) {
+        return new ApiErrorResponse(
                 Instant.now(),
                 status.value(),
                 status.getReasonPhrase(),
@@ -70,6 +102,5 @@ public class GlobalExceptionHandler {
                 request.getRequestURI(),
                 fieldErrors
         );
-        return ResponseEntity.status(status).body(body);
     }
 }

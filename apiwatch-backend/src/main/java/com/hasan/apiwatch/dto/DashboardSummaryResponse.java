@@ -5,6 +5,7 @@ public record DashboardSummaryResponse(
         long upServices,
         long slowServices,
         long downServices,
+        long rateLimitedServices,
         long unknownServices,
         long activeIncidents,
         double averageResponseTimeMs,
