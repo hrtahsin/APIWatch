@@ -1,6 +1,7 @@
 package com.hasan.apiwatch.service;
 
 import com.hasan.apiwatch.dto.HealthCheckResponse;
+import com.hasan.apiwatch.dto.PageResponse;
 import com.hasan.apiwatch.entity.HealthCheck;
 import com.hasan.apiwatch.repository.HealthCheckRepository;
 import org.springframework.data.domain.PageRequest;
@@ -24,14 +25,20 @@ public class HealthCheckQueryService {
     }
 
     @Transactional(readOnly = true)
-    public List<HealthCheckResponse> findRecent(Long serviceId, int limit) {
+    public PageResponse<HealthCheckResponse> findRecent(
+            Long serviceId,
+            int page,
+            int size
+    ) {
         serviceMonitorService.getEntity(serviceId);
-        return healthCheckRepository.findByMonitoredServiceIdOrderByCheckedAtDesc(
+        var checks = healthCheckRepository.findByMonitoredServiceIdOrderByCheckedAtDesc(
                         serviceId,
-                        PageRequest.of(0, Math.min(Math.max(limit, 1), 500))
-                ).stream()
-                .map(this::toResponse)
-                .toList();
+                        PageRequest.of(
+                                Math.max(page, 0),
+                                Math.min(Math.max(size, 1), 100)
+                        )
+                ).map(this::toResponse);
+        return PageResponse.from(checks);
     }
 
     private HealthCheckResponse toResponse(HealthCheck check) {

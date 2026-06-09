@@ -1,7 +1,9 @@
 package com.hasan.apiwatch.controller;
 
 import com.hasan.apiwatch.dto.CreateServiceRequest;
+import com.hasan.apiwatch.dto.PageResponse;
 import com.hasan.apiwatch.dto.ServiceResponse;
+import com.hasan.apiwatch.dto.UpdateServiceActiveRequest;
 import com.hasan.apiwatch.dto.UpdateServiceRequest;
 import com.hasan.apiwatch.service.ServiceMonitorService;
 import jakarta.validation.Valid;
@@ -10,13 +12,13 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-
-import java.util.List;
 
 @RestController
 @RequestMapping("/api/services")
@@ -34,8 +36,11 @@ public class MonitoredServiceController {
     }
 
     @GetMapping
-    List<ServiceResponse> findAll() {
-        return serviceMonitorService.findAll();
+    PageResponse<ServiceResponse> findAll(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size
+    ) {
+        return serviceMonitorService.findAll(page, size);
     }
 
     @GetMapping("/{id}")
@@ -49,6 +54,14 @@ public class MonitoredServiceController {
             @Valid @RequestBody UpdateServiceRequest request
     ) {
         return serviceMonitorService.update(id, request);
+    }
+
+    @PatchMapping("/{id}/active")
+    ServiceResponse setActive(
+            @PathVariable Long id,
+            @Valid @RequestBody UpdateServiceActiveRequest request
+    ) {
+        return serviceMonitorService.setActive(id, request.active());
     }
 
     @DeleteMapping("/{id}")

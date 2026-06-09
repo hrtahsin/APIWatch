@@ -5,11 +5,14 @@ import com.hasan.apiwatch.entity.Incident;
 import com.hasan.apiwatch.entity.MonitoredService;
 import com.hasan.apiwatch.enums.HealthStatus;
 import com.hasan.apiwatch.enums.IncidentStatus;
+import com.hasan.apiwatch.event.IncidentNotificationEvent;
 import com.hasan.apiwatch.repository.HealthCheckRepository;
 import com.hasan.apiwatch.repository.IncidentRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -29,6 +32,7 @@ class IncidentServiceTest {
 
     private IncidentRepository incidentRepository;
     private HealthCheckRepository healthCheckRepository;
+    private ApplicationEventPublisher eventPublisher;
     private IncidentService incidentService;
     private MonitoredService service;
 
@@ -36,7 +40,14 @@ class IncidentServiceTest {
     void setUp() {
         incidentRepository = mock(IncidentRepository.class);
         healthCheckRepository = mock(HealthCheckRepository.class);
-        incidentService = new IncidentService(incidentRepository, healthCheckRepository);
+        eventPublisher = mock(ApplicationEventPublisher.class);
+        when(incidentRepository.save(any(Incident.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        incidentService = new IncidentService(
+                incidentRepository,
+                healthCheckRepository,
+                eventPublisher
+        );
 
         service = new MonitoredService();
         ReflectionTestUtils.setField(service, "id", 7L);
@@ -56,7 +67,7 @@ class IncidentServiceTest {
         when(healthCheckRepository.findByMonitoredServiceIdOrderByCheckedAtDesc(
                 eq(7L),
                 any(Pageable.class)
-        )).thenReturn(recent);
+        )).thenReturn(new PageImpl<>(recent));
         when(incidentRepository.findFirstByMonitoredServiceIdAndStatus(
                 7L,
                 IncidentStatus.ACTIVE
@@ -69,6 +80,7 @@ class IncidentServiceTest {
         assertThat(captor.getValue().getStatus()).isEqualTo(IncidentStatus.ACTIVE);
         assertThat(captor.getValue().getStartedAt()).isEqualTo(firstFailure);
         assertThat(captor.getValue().getReason()).contains("3 consecutive");
+        verify(eventPublisher).publishEvent(any(IncidentNotificationEvent.class));
     }
 
     @Test
@@ -77,7 +89,9 @@ class IncidentServiceTest {
         when(healthCheckRepository.findByMonitoredServiceIdOrderByCheckedAtDesc(
                 eq(7L),
                 any(Pageable.class)
-        )).thenReturn(List.of(latest, check(HealthStatus.DOWN, Instant.now())));
+        )).thenReturn(new PageImpl<>(
+                List.of(latest, check(HealthStatus.DOWN, Instant.now()))
+        ));
 
         incidentService.evaluate(service, latest);
 
@@ -101,6 +115,7 @@ class IncidentServiceTest {
         assertThat(incident.getResolvedAt()).isNotNull();
         assertThat(incident.getDurationSeconds()).isGreaterThanOrEqualTo(120);
         verify(incidentRepository).save(incident);
+        verify(eventPublisher).publishEvent(any(IncidentNotificationEvent.class));
     }
 
     private HealthCheck check(HealthStatus status, Instant checkedAt) {

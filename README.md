@@ -13,10 +13,21 @@ Operations teams need a fast answer to four questions: what is failing, when it 
 - `UP`, `SLOW`, `DOWN`, and `UNKNOWN` service states
 - Dedicated `RATE_LIMITED` state with retry metadata and automatic check pauses
 - Failure diagnostics for HTTP, timeout, DNS, connection, and network errors
-- Configurable expected status, timeout, and failure threshold
+- Encrypted Bearer tokens, API keys, and custom request headers
+- Masked credential metadata in API responses and the dashboard
+- Per-service check intervals and pause/resume controls
+- Expected HTTP status ranges and optional response-body validation
+- Configurable timeout and failure threshold
 - Automatic incident creation after consecutive failures
 - Automatic and manual incident resolution
+- Encrypted incident webhook configuration with delivery cooldowns
+- Notifications for incident open and resolution events
+- HTTP Basic application authentication with administrator and viewer roles
+- SSRF protection for monitored URLs and notification webhooks
+- Private-network blocking with an explicit hostname allowlist
 - Uptime, average latency, P95 latency, and failure metrics
+- Paginated service, health-check, and incident history endpoints
+- Configurable retention cleanup for checks, resolved incidents, and notifications
 - PostgreSQL persistence with Flyway migrations
 - Responsive React dashboard with charts and filtering
 - Docker Compose full-stack environment
@@ -65,11 +76,23 @@ cp .env.example .env
 docker compose up --build
 ```
 
+`APIWATCH_ENCRYPTION_KEY` must be a Base64-encoded 32-byte key. The example
+contains a development-only value; replace it before deploying APIWatch.
+
+Generate a production key with:
+
+```bash
+openssl rand -base64 32
+```
+
 Open:
 
 - Dashboard: `http://localhost:5173`
 - REST API: `http://localhost:8080/api`
 - Healthy mock: `http://localhost:8080/api/mock/healthy`
+
+Sign in with the administrator or viewer credentials configured in `.env`.
+Replace both example passwords before exposing APIWatch outside local development.
 
 Compose enables demo seeding by default. It registers healthy, slow, failing, GitHub, and JSONPlaceholder services. The scheduler starts checking them after 15 seconds.
 
@@ -120,31 +143,50 @@ Register a service:
 
 ```bash
 curl -X POST http://localhost:8080/api/services \
+  -u "$APIWATCH_ADMIN_USERNAME:$APIWATCH_ADMIN_PASSWORD" \
   -H "Content-Type: application/json" \
   -d '{
     "name": "Payment Service",
     "url": "https://example.com/health",
     "method": "GET",
-    "expectedStatusCode": 200,
+    "expectedStatusMin": 200,
+    "expectedStatusMax": 299,
     "timeoutMs": 2000,
+    "checkIntervalSeconds": 60,
+    "responseBodyContains": "\"status\":\"ok\"",
     "failureThreshold": 3,
-    "active": true
+    "active": true,
+    "authType": "BEARER",
+    "authValue": "replace-with-a-token",
+    "customHeaders": {
+      "X-Tenant-ID": "customer-7"
+    }
   }'
 ```
+
+Credential values are encrypted at rest and are never included in service
+responses. On update, omit the values to keep existing credentials, provide new
+values to replace them, or set `clearAuthSecret` to `true` to remove stored
+authentication.
 
 Useful endpoints:
 
 | Method | Endpoint | Purpose |
 | --- | --- | --- |
 | `POST` | `/api/services` | Register a service |
-| `GET` | `/api/services` | List services with current state |
+| `GET` | `/api/auth/me` | Return the authenticated user and role |
+| `GET` | `/api/services?page=0&size=20` | List services with current state |
 | `PUT` | `/api/services/{id}` | Update monitoring configuration |
+| `PATCH` | `/api/services/{id}/active` | Pause or resume scheduled checks |
 | `DELETE` | `/api/services/{id}` | Delete a service and its history |
 | `POST` | `/api/services/{id}/check` | Trigger a health check |
-| `GET` | `/api/services/{id}/health-checks?limit=50` | Get recent checks |
+| `GET` | `/api/services/{id}/health-checks?page=0&size=20` | Get recent checks |
 | `GET` | `/api/services/{id}/metrics?windowHours=24` | Get service metrics |
-| `GET` | `/api/incidents?status=ACTIVE` | List or filter incidents |
+| `GET` | `/api/incidents?status=ACTIVE&page=0&size=20` | List or filter incidents |
 | `PATCH` | `/api/incidents/{id}/resolve` | Resolve an incident |
+| `GET` | `/api/notification-settings` | Get masked webhook configuration |
+| `PUT` | `/api/notification-settings` | Configure webhook delivery and cooldown |
+| `GET` | `/api/notification-settings/deliveries` | Review recent delivery attempts |
 | `GET` | `/api/dashboard/summary` | Get platform summary metrics |
 
 ## Data Model
@@ -155,16 +197,44 @@ Useful endpoints:
 
 Indexes support recent health-check lookups and incident filtering. A partial unique index prevents duplicate active incidents for the same service.
 
+Paged endpoints return `content`, `page`, `size`, `totalElements`, and
+`totalPages`. Page indexes start at zero and page size is capped at 100.
+
+History cleanup runs daily at 02:30 by default. Configure
+`APIWATCH_RETENTION_HEALTH_CHECK_DAYS`, `APIWATCH_RETENTION_INCIDENT_DAYS`,
+`APIWATCH_RETENTION_NOTIFICATION_DAYS`, and `APIWATCH_RETENTION_CRON`, or set
+`APIWATCH_RETENTION_ENABLED=false` to disable cleanup.
+
 ## Incident Rules
 
 1. Every completed request is stored as a health check.
-2. A matching status within the latency threshold is `UP`.
+2. A status inside the configured range and within the latency threshold is `UP`.
 3. A matching status beyond the threshold is `SLOW`.
-4. Network errors, hard timeouts, and unexpected statuses are `DOWN` with a failure category.
+4. Network errors, timeouts, unexpected statuses, and body validation failures are `DOWN`.
 5. HTTP `429`, or `403` with an exhausted rate-limit header, is `RATE_LIMITED`.
 6. Rate-limited services pause until `Retry-After` or provider reset metadata allows a retry.
 7. The configured number of consecutive `DOWN` checks creates one active incident.
 8. A later `UP` check resolves the active incident and records its duration.
+9. Enabled webhooks receive structured JSON when incidents open or resolve.
+10. Repeated events for the same service are suppressed during the configured cooldown.
+
+Webhook URLs are encrypted with `APIWATCH_ENCRYPTION_KEY` and never returned by
+the API. Delivery attempts record success, failure, HTTP status, and cooldown
+suppression for operational review.
+
+## Security
+
+All `/api` endpoints require HTTP Basic authentication except local mock
+endpoints. `VIEWER` accounts can read monitoring data. `ADMIN` accounts can
+create, edit, delete, check, pause, resolve, and configure notifications.
+Deploy behind HTTPS because Basic credentials accompany every API request.
+
+Outbound monitored URLs and webhooks are checked when saved and immediately
+before use. Loopback, private, link-local, multicast, carrier-grade NAT, and
+other internal addresses are blocked. Keep `APIWATCH_BLOCK_PRIVATE_TARGETS=true`
+in production. Add required internal hostnames to
+`APIWATCH_PRIVATE_TARGET_ALLOWLIST` as a comma-separated exact or `*.domain`
+allowlist. Redirect following is disabled to prevent redirect-based SSRF.
 
 ## Testing
 
@@ -179,6 +249,7 @@ Frontend:
 
 ```bash
 cd apiwatch-frontend
+npm test
 npm run lint
 npm run build
 ```
@@ -191,7 +262,7 @@ pushes to `main`, and version tags such as `v1.0.0`.
 Pipeline jobs:
 
 - Backend: sets up Java 21 and runs `mvn -B clean verify`
-- Frontend: sets up Node.js 22, runs `npm ci`, `npm run lint`, and `npm run build`
+- Frontend: sets up Node.js 22, runs `npm ci`, `npm run lint`, `npm test`, and `npm run build`
 - Docker: builds backend and frontend Docker images after tests pass
 - CD: publishes images to GitHub Container Registry on pushes to `main` and tags
 
@@ -199,4 +270,3 @@ Published image names:
 
 - `ghcr.io/<owner>/apiwatch-backend`
 - `ghcr.io/<owner>/apiwatch-frontend`
-

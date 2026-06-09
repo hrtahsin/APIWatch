@@ -1,6 +1,7 @@
 package com.hasan.apiwatch.entity;
 
 import com.hasan.apiwatch.enums.HttpMethodType;
+import com.hasan.apiwatch.enums.RequestAuthType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -35,8 +36,20 @@ public class MonitoredService {
     @Column(name = "expected_status_code", nullable = false)
     private int expectedStatusCode = 200;
 
+    @Column(name = "expected_status_min", nullable = false)
+    private int expectedStatusMin = 200;
+
+    @Column(name = "expected_status_max", nullable = false)
+    private int expectedStatusMax = 299;
+
     @Column(name = "timeout_ms", nullable = false)
     private int timeoutMs = 2000;
+
+    @Column(name = "check_interval_seconds", nullable = false)
+    private int checkIntervalSeconds = 60;
+
+    @Column(name = "response_body_contains", length = 500)
+    private String responseBodyContains;
 
     @Column(name = "failure_threshold", nullable = false)
     private int failureThreshold = 3;
@@ -46,6 +59,19 @@ public class MonitoredService {
 
     @Column(name = "rate_limited_until")
     private Instant rateLimitedUntil;
+
+    @Column(name = "custom_headers_encrypted", columnDefinition = "TEXT")
+    private String customHeadersEncrypted;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "auth_type", nullable = false, length = 20)
+    private RequestAuthType authType = RequestAuthType.NONE;
+
+    @Column(name = "auth_header_name", length = 120)
+    private String authHeaderName;
+
+    @Column(name = "auth_value_encrypted", columnDefinition = "TEXT")
+    private String authValueEncrypted;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
@@ -101,12 +127,44 @@ public class MonitoredService {
         this.expectedStatusCode = expectedStatusCode;
     }
 
+    public int getExpectedStatusMin() {
+        return expectedStatusMin;
+    }
+
+    public void setExpectedStatusMin(int expectedStatusMin) {
+        this.expectedStatusMin = expectedStatusMin;
+    }
+
+    public int getExpectedStatusMax() {
+        return expectedStatusMax;
+    }
+
+    public void setExpectedStatusMax(int expectedStatusMax) {
+        this.expectedStatusMax = expectedStatusMax;
+    }
+
     public int getTimeoutMs() {
         return timeoutMs;
     }
 
     public void setTimeoutMs(int timeoutMs) {
         this.timeoutMs = timeoutMs;
+    }
+
+    public int getCheckIntervalSeconds() {
+        return checkIntervalSeconds;
+    }
+
+    public void setCheckIntervalSeconds(int checkIntervalSeconds) {
+        this.checkIntervalSeconds = checkIntervalSeconds;
+    }
+
+    public String getResponseBodyContains() {
+        return responseBodyContains;
+    }
+
+    public void setResponseBodyContains(String responseBodyContains) {
+        this.responseBodyContains = responseBodyContains;
     }
 
     public int getFailureThreshold() {
@@ -131,6 +189,38 @@ public class MonitoredService {
 
     public void setRateLimitedUntil(Instant rateLimitedUntil) {
         this.rateLimitedUntil = rateLimitedUntil;
+    }
+
+    public String getCustomHeadersEncrypted() {
+        return customHeadersEncrypted;
+    }
+
+    public void setCustomHeadersEncrypted(String customHeadersEncrypted) {
+        this.customHeadersEncrypted = customHeadersEncrypted;
+    }
+
+    public RequestAuthType getAuthType() {
+        return authType;
+    }
+
+    public void setAuthType(RequestAuthType authType) {
+        this.authType = authType;
+    }
+
+    public String getAuthHeaderName() {
+        return authHeaderName;
+    }
+
+    public void setAuthHeaderName(String authHeaderName) {
+        this.authHeaderName = authHeaderName;
+    }
+
+    public String getAuthValueEncrypted() {
+        return authValueEncrypted;
+    }
+
+    public void setAuthValueEncrypted(String authValueEncrypted) {
+        this.authValueEncrypted = authValueEncrypted;
     }
 
     public Instant getCreatedAt() {

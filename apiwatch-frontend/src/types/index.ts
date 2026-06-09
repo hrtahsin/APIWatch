@@ -1,12 +1,26 @@
 export type HealthStatus = 'UP' | 'DOWN' | 'SLOW' | 'RATE_LIMITED' | 'UNKNOWN'
 export type IncidentStatus = 'ACTIVE' | 'RESOLVED'
+export type RequestAuthType = 'NONE' | 'BEARER' | 'API_KEY'
+export type NotificationEventType = 'INCIDENT_OPENED' | 'INCIDENT_RESOLVED'
+export type NotificationDeliveryStatus = 'SENT' | 'FAILED' | 'SKIPPED_COOLDOWN'
+export type UserRole = 'ADMIN' | 'VIEWER'
 export type FailureType =
   | 'HTTP_STATUS'
+  | 'RESPONSE_VALIDATION'
+  | 'SECURITY_BLOCKED'
   | 'TIMEOUT'
   | 'DNS_FAILURE'
   | 'CONNECTION_FAILURE'
   | 'RATE_LIMITED'
   | 'NETWORK_ERROR'
+
+export interface PageResponse<T> {
+  content: T[]
+  page: number
+  size: number
+  totalElements: number
+  totalPages: number
+}
 
 export interface MonitoredService {
   id: number
@@ -14,7 +28,11 @@ export interface MonitoredService {
   url: string
   method: 'GET'
   expectedStatusCode: number
+  expectedStatusMin: number
+  expectedStatusMax: number
   timeoutMs: number
+  checkIntervalSeconds: number
+  responseBodyContains: string | null
   failureThreshold: number
   active: boolean
   currentStatus: HealthStatus
@@ -24,6 +42,10 @@ export interface MonitoredService {
   lastFailureType: FailureType | null
   lastErrorMessage: string | null
   rateLimitedUntil: string | null
+  customHeaderNames: string[]
+  authType: RequestAuthType
+  authHeaderName: string | null
+  authConfigured: boolean
   activeIncident: boolean
   createdAt: string
   updatedAt: string
@@ -85,8 +107,47 @@ export interface ServiceInput {
   name: string
   url: string
   method: 'GET'
-  expectedStatusCode: number
+  expectedStatusMin: number
+  expectedStatusMax: number
   timeoutMs: number
+  checkIntervalSeconds: number
+  responseBodyContains: string
   failureThreshold: number
   active: boolean
+  customHeaders: Record<string, string> | null
+  authType: RequestAuthType
+  authHeaderName: string
+  authValue: string
+  clearAuthSecret: boolean
+}
+
+export interface NotificationSettings {
+  enabled: boolean
+  webhookConfigured: boolean
+  webhookDisplay: string | null
+  cooldownSeconds: number
+  updatedAt: string | null
+}
+
+export interface NotificationSettingsInput {
+  enabled: boolean
+  webhookUrl: string
+  clearWebhook: boolean
+  cooldownSeconds: number
+}
+
+export interface NotificationDelivery {
+  id: number
+  incidentId: number
+  serviceId: number
+  eventType: NotificationEventType
+  status: NotificationDeliveryStatus
+  httpStatusCode: number | null
+  errorMessage: string | null
+  attemptedAt: string
+}
+
+export interface AuthUser {
+  username: string
+  role: UserRole
 }

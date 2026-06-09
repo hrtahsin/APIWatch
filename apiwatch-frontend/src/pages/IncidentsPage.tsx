@@ -1,34 +1,44 @@
-import { useEffect, useMemo, useState } from 'react'
-import { getIncidents, resolveIncident } from '../api/client'
+import { useCallback, useEffect, useState } from 'react'
+import { getApiErrorMessage, getIncidentsPage, resolveIncident } from '../api/client'
+import { useAuth } from '../auth/useAuth'
 import { IncidentTable } from '../components/IncidentTable'
+import { Pagination } from '../components/Pagination'
 import type { Incident, IncidentStatus } from '../types'
 
 const filters: Array<'ALL' | IncidentStatus> = ['ALL', 'ACTIVE', 'RESOLVED']
+const pageSize = 10
 
 export function IncidentsPage() {
+  const { canManage } = useAuth()
   const [incidents, setIncidents] = useState<Incident[]>([])
   const [filter, setFilter] = useState<'ALL' | IncidentStatus>('ALL')
+  const [page, setPage] = useState(0)
+  const [totalElements, setTotalElements] = useState(0)
+  const [totalPages, setTotalPages] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  async function load() {
-    const response = await getIncidents()
-    setIncidents(response)
-  }
+  const load = useCallback(async () => {
+    const response = await getIncidentsPage(
+      filter === 'ALL' ? undefined : filter,
+      undefined,
+      page,
+      pageSize,
+    )
+    setIncidents(response.content)
+    setTotalElements(response.totalElements)
+    setTotalPages(response.totalPages)
+  }, [filter, page])
 
   useEffect(() => {
+    setLoading(true)
     load()
       .then(() => setError(null))
       .catch((loadError) => {
-        setError(loadError instanceof Error ? loadError.message : 'Unable to load incidents')
+        setError(getApiErrorMessage(loadError, 'Unable to load incidents'))
       })
       .finally(() => setLoading(false))
-  }, [])
-
-  const visibleIncidents = useMemo(
-    () => (filter === 'ALL' ? incidents : incidents.filter((incident) => incident.status === filter)),
-    [filter, incidents],
-  )
+  }, [load])
 
   async function handleResolve(id: number) {
     try {
@@ -36,8 +46,13 @@ export function IncidentsPage() {
       await load()
       setError(null)
     } catch (resolveError) {
-      setError(resolveError instanceof Error ? resolveError.message : 'Unable to resolve incident')
+      setError(getApiErrorMessage(resolveError, 'Unable to resolve incident'))
     }
+  }
+
+  function handleFilterChange(nextFilter: 'ALL' | IncidentStatus) {
+    setFilter(nextFilter)
+    setPage(0)
   }
 
   return (
@@ -52,7 +67,7 @@ export function IncidentsPage() {
             <button
               key={item}
               className={filter === item ? 'active' : ''}
-              onClick={() => setFilter(item)}
+              onClick={() => handleFilterChange(item)}
               type="button"
             >
               {item}
@@ -64,8 +79,17 @@ export function IncidentsPage() {
       {loading ? (
         <div className="loading-panel">Loading incidents...</div>
       ) : (
-        <IncidentTable incidents={visibleIncidents} onResolve={handleResolve} />
+        <IncidentTable
+          incidents={incidents}
+          onResolve={canManage ? handleResolve : undefined}
+        />
       )}
+      <Pagination
+        page={page}
+        totalPages={totalPages}
+        totalElements={totalElements}
+        onPageChange={setPage}
+      />
     </section>
   )
 }

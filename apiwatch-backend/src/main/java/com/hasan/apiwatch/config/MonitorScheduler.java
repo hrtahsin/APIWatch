@@ -1,6 +1,7 @@
 package com.hasan.apiwatch.config;
 
 import com.hasan.apiwatch.entity.MonitoredService;
+import com.hasan.apiwatch.repository.HealthCheckRepository;
 import com.hasan.apiwatch.repository.MonitoredServiceRepository;
 import com.hasan.apiwatch.service.HealthCheckRunner;
 import org.slf4j.Logger;
@@ -9,8 +10,9 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
-import java.util.List;
+import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 
 @Component
 @ConditionalOnProperty(
@@ -23,18 +25,21 @@ public class MonitorScheduler {
     private static final Logger log = LoggerFactory.getLogger(MonitorScheduler.class);
 
     private final MonitoredServiceRepository serviceRepository;
+    private final HealthCheckRepository healthCheckRepository;
     private final HealthCheckRunner healthCheckRunner;
 
     public MonitorScheduler(
             MonitoredServiceRepository serviceRepository,
+            HealthCheckRepository healthCheckRepository,
             HealthCheckRunner healthCheckRunner
     ) {
         this.serviceRepository = serviceRepository;
+        this.healthCheckRepository = healthCheckRepository;
         this.healthCheckRunner = healthCheckRunner;
     }
 
     @Scheduled(
-            fixedDelayString = "${apiwatch.scheduler.interval-ms:60000}",
+            fixedDelayString = "${apiwatch.scheduler.interval-ms:5000}",
             initialDelayString = "${apiwatch.scheduler.initial-delay-ms:15000}"
     )
     public void monitorActiveServices() {
@@ -47,6 +52,9 @@ public class MonitorScheduler {
                         service.getName(), service.getId(), service.getRateLimitedUntil());
                 continue;
             }
+            if (!isDue(service, Instant.now())) {
+                continue;
+            }
             try {
                 healthCheckRunner.run(service);
             } catch (Exception exception) {
@@ -55,5 +63,14 @@ public class MonitorScheduler {
             }
         }
         log.info("Finished scheduled monitoring run");
+    }
+
+    boolean isDue(MonitoredService service, Instant now) {
+        return healthCheckRepository
+                .findTopByMonitoredServiceIdOrderByCheckedAtDesc(service.getId())
+                .map(check -> !check.getCheckedAt()
+                        .plus(Duration.ofSeconds(service.getCheckIntervalSeconds()))
+                        .isAfter(now))
+                .orElse(true);
     }
 }

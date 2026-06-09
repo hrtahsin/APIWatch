@@ -6,9 +6,12 @@ import com.hasan.apiwatch.enums.FailureType;
 import com.hasan.apiwatch.enums.HealthStatus;
 import com.hasan.apiwatch.exception.CheckAlreadyRunningException;
 import com.hasan.apiwatch.exception.ServiceRateLimitedException;
+import com.hasan.apiwatch.exception.UnsafeTargetException;
 import com.hasan.apiwatch.repository.HealthCheckRepository;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpStatus;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.web.reactive.function.client.ClientResponse;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
@@ -31,22 +34,24 @@ class HealthCheckRunnerTest {
             WebClient.builder(),
             mock(HealthCheckRepository.class),
             mock(ServiceMonitorService.class),
-            mock(IncidentService.class)
+            mock(IncidentService.class),
+            mock(ServiceCredentialService.class),
+            mock(UrlSafetyService.class)
     );
 
     @Test
     void classifiesMatchingFastResponseAsUp() {
-        assertThat(runner.classify(200, 200, 180, 2000)).isEqualTo(HealthStatus.UP);
+        assertThat(runner.classify(204, 200, 299, 180, 2000)).isEqualTo(HealthStatus.UP);
     }
 
     @Test
     void classifiesMatchingSlowResponseAsSlow() {
-        assertThat(runner.classify(200, 200, 2501, 2000)).isEqualTo(HealthStatus.SLOW);
+        assertThat(runner.classify(200, 200, 299, 2501, 2000)).isEqualTo(HealthStatus.SLOW);
     }
 
     @Test
     void classifiesUnexpectedStatusAsDown() {
-        assertThat(runner.classify(503, 200, 90, 2000)).isEqualTo(HealthStatus.DOWN);
+        assertThat(runner.classify(503, 200, 299, 90, 2000)).isEqualTo(HealthStatus.DOWN);
     }
 
     @Test
@@ -64,6 +69,8 @@ class HealthCheckRunnerTest {
                 .isEqualTo(FailureType.DNS_FAILURE);
         assertThat(runner.classifyFailure(new RuntimeException(new ConnectException())))
                 .isEqualTo(FailureType.CONNECTION_FAILURE);
+        assertThat(runner.classifyFailure(new UnsafeTargetException("blocked")))
+                .isEqualTo(FailureType.SECURITY_BLOCKED);
     }
 
     @Test
@@ -84,7 +91,9 @@ class HealthCheckRunnerTest {
                 WebClient.builder().exchangeFunction(request -> Mono.never()),
                 repository,
                 mock(ServiceMonitorService.class),
-                mock(IncidentService.class)
+                mock(IncidentService.class),
+                mock(ServiceCredentialService.class),
+                mock(UrlSafetyService.class)
         );
         MonitoredService service = service(12L);
         service.setTimeoutMs(100);
@@ -99,13 +108,42 @@ class HealthCheckRunnerTest {
         firstCheck.get(2, TimeUnit.SECONDS);
     }
 
+    @Test
+    void marksCheckDownWhenResponseBodyValidationFails() {
+        HealthCheckRepository repository = mock(HealthCheckRepository.class);
+        when(repository.save(any(HealthCheck.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        HealthCheckRunner validatingRunner = new HealthCheckRunner(
+                WebClient.builder().exchangeFunction(request -> Mono.just(
+                        ClientResponse.create(HttpStatus.OK)
+                                .body("{\"status\":\"degraded\"}")
+                                .build()
+                )),
+                repository,
+                mock(ServiceMonitorService.class),
+                mock(IncidentService.class),
+                mock(ServiceCredentialService.class),
+                mock(UrlSafetyService.class)
+        );
+        MonitoredService service = service(15L);
+        service.setResponseBodyContains("\"status\":\"ok\"");
+
+        var response = validatingRunner.run(service);
+
+        assertThat(response.status()).isEqualTo(HealthStatus.DOWN);
+        assertThat(response.failureType()).isEqualTo(FailureType.RESPONSE_VALIDATION);
+        assertThat(response.errorMessage()).contains("did not contain");
+    }
+
     private MonitoredService service(Long id) {
         MonitoredService service = new MonitoredService();
         ReflectionTestUtils.setField(service, "id", id);
         service.setName("Test API");
         service.setUrl("https://example.com");
         service.setExpectedStatusCode(200);
+        service.setExpectedStatusMin(200);
+        service.setExpectedStatusMax(299);
         service.setTimeoutMs(2000);
+        service.setCheckIntervalSeconds(60);
         service.setFailureThreshold(3);
         service.setActive(true);
         return service;

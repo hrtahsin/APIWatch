@@ -7,6 +7,7 @@ import com.hasan.apiwatch.enums.FailureType;
 import com.hasan.apiwatch.enums.HealthStatus;
 import com.hasan.apiwatch.exception.CheckAlreadyRunningException;
 import com.hasan.apiwatch.exception.ServiceRateLimitedException;
+import com.hasan.apiwatch.exception.UnsafeTargetException;
 import com.hasan.apiwatch.repository.HealthCheckRepository;
 import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Service;
@@ -34,18 +35,24 @@ public class HealthCheckRunner {
     private final HealthCheckRepository healthCheckRepository;
     private final ServiceMonitorService serviceMonitorService;
     private final IncidentService incidentService;
+    private final ServiceCredentialService credentialService;
+    private final UrlSafetyService urlSafetyService;
     private final Set<Long> runningServiceIds = ConcurrentHashMap.newKeySet();
 
     public HealthCheckRunner(
             WebClient.Builder webClientBuilder,
             HealthCheckRepository healthCheckRepository,
             ServiceMonitorService serviceMonitorService,
-            IncidentService incidentService
+            IncidentService incidentService,
+            ServiceCredentialService credentialService,
+            UrlSafetyService urlSafetyService
     ) {
         this.webClient = webClientBuilder.build();
         this.healthCheckRepository = healthCheckRepository;
         this.serviceMonitorService = serviceMonitorService;
         this.incidentService = incidentService;
+        this.credentialService = credentialService;
+        this.urlSafetyService = urlSafetyService;
     }
 
     @Transactional
@@ -82,15 +89,30 @@ public class HealthCheckRunner {
         HealthStatus status;
 
         try {
+            urlSafetyService.assertRequestAllowed(service.getUrl());
             long hardTimeoutMs = Math.min(120_000L, service.getTimeoutMs() + 1_000L);
             EndpointResponse endpointResponse = webClient.get()
                     .uri(service.getUrl())
+                    .headers(headers -> credentialService.applyTo(service, headers))
                     .exchangeToMono(response -> {
                         HttpHeaders headers = new HttpHeaders();
                         headers.putAll(response.headers().asHttpHeaders());
-                        return response.releaseBody().thenReturn(
-                                new EndpointResponse(response.statusCode().value(), headers)
-                        );
+                        if (service.getResponseBodyContains() == null) {
+                            return response.releaseBody().thenReturn(
+                                    new EndpointResponse(
+                                            response.statusCode().value(),
+                                            headers,
+                                            null
+                                    )
+                            );
+                        }
+                        return response.bodyToMono(String.class)
+                                .defaultIfEmpty("")
+                                .map(body -> new EndpointResponse(
+                                        response.statusCode().value(),
+                                        headers,
+                                        body
+                                ));
                     })
                     .timeout(Duration.ofMillis(hardTimeoutMs))
                     .block();
@@ -119,14 +141,20 @@ public class HealthCheckRunner {
                 serviceMonitorService.clearRateLimit(service.getId());
                 status = classify(
                         statusCode,
-                        service.getExpectedStatusCode(),
+                        service.getExpectedStatusMin(),
+                        service.getExpectedStatusMax(),
                         responseTimeMs,
                         service.getTimeoutMs()
                 );
                 if (status == HealthStatus.DOWN) {
                     failureType = FailureType.HTTP_STATUS;
-                    errorMessage = "Expected HTTP " + service.getExpectedStatusCode()
+                    errorMessage = "Expected HTTP " + formatExpectedStatus(service)
                             + " but received " + statusCode;
+                } else if (service.getResponseBodyContains() != null
+                        && !endpointResponse.body().contains(service.getResponseBodyContains())) {
+                    status = HealthStatus.DOWN;
+                    failureType = FailureType.RESPONSE_VALIDATION;
+                    errorMessage = "Response body did not contain the configured text";
                 }
             }
         } catch (Exception exception) {
@@ -152,14 +180,22 @@ public class HealthCheckRunner {
 
     public HealthStatus classify(
             int actualStatusCode,
-            int expectedStatusCode,
+            int expectedStatusMin,
+            int expectedStatusMax,
             long responseTimeMs,
             int slowThresholdMs
     ) {
-        if (actualStatusCode != expectedStatusCode) {
+        if (actualStatusCode < expectedStatusMin || actualStatusCode > expectedStatusMax) {
             return HealthStatus.DOWN;
         }
         return responseTimeMs > slowThresholdMs ? HealthStatus.SLOW : HealthStatus.UP;
+    }
+
+    private String formatExpectedStatus(MonitoredService service) {
+        if (service.getExpectedStatusMin() == service.getExpectedStatusMax()) {
+            return Integer.toString(service.getExpectedStatusMin());
+        }
+        return service.getExpectedStatusMin() + "-" + service.getExpectedStatusMax();
     }
 
     boolean isRateLimited(int statusCode, Long remaining) {
@@ -176,6 +212,9 @@ public class HealthCheckRunner {
         }
         if (cause instanceof ConnectException) {
             return FailureType.CONNECTION_FAILURE;
+        }
+        if (cause instanceof UnsafeTargetException) {
+            return FailureType.SECURITY_BLOCKED;
         }
         if (exception instanceof WebClientRequestException) {
             return FailureType.NETWORK_ERROR;
@@ -260,6 +299,6 @@ public class HealthCheckRunner {
         );
     }
 
-    private record EndpointResponse(int statusCode, HttpHeaders headers) {
+    private record EndpointResponse(int statusCode, HttpHeaders headers, String body) {
     }
 }

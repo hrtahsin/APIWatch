@@ -1,18 +1,44 @@
 import axios from 'axios'
 import type {
+  AuthUser,
   DashboardSummary,
   HealthCheck,
   Incident,
   IncidentStatus,
   MonitoredService,
+  NotificationDelivery,
+  NotificationSettings,
+  NotificationSettingsInput,
+  PageResponse,
   ServiceInput,
   ServiceMetrics,
 } from '../types'
+
+const authStorageKey = 'apiwatch-basic-auth'
 
 const http = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080/api',
   timeout: 15_000,
 })
+
+http.interceptors.request.use((config) => {
+  const credentials =
+    typeof window === 'undefined' ? null : window.sessionStorage.getItem(authStorageKey)
+  if (credentials) {
+    config.headers.Authorization = `Basic ${credentials}`
+  }
+  return config
+})
+
+http.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (axios.isAxiosError(error) && error.response?.status === 401 && typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('apiwatch:unauthorized'))
+    }
+    return Promise.reject(error)
+  },
+)
 
 export function getApiErrorMessage(error: unknown, fallback: string): string {
   if (!axios.isAxiosError(error)) {
@@ -32,6 +58,42 @@ export function getApiErrorMessage(error: unknown, fallback: string): string {
 const demoMode = import.meta.env.VITE_DEMO_MODE === 'true'
 const now = Date.now()
 
+let demoNotificationSettings: NotificationSettings = {
+  enabled: false,
+  webhookConfigured: false,
+  webhookDisplay: null,
+  cooldownSeconds: 300,
+  updatedAt: null,
+}
+
+const demoNotificationDeliveries: NotificationDelivery[] = []
+
+export function setApiCredentials(username: string, password: string) {
+  window.sessionStorage.setItem(authStorageKey, window.btoa(`${username}:${password}`))
+}
+
+export function clearApiCredentials() {
+  window.sessionStorage.removeItem(authStorageKey)
+}
+
+export function hasApiCredentials(): boolean {
+  return window.sessionStorage.getItem(authStorageKey) !== null
+}
+
+export async function getCurrentUser(): Promise<AuthUser> {
+  if (demoMode) {
+    const credentials = window.sessionStorage.getItem(authStorageKey)
+    const username = credentials
+      ? window.atob(credentials).split(':', 1)[0]
+      : 'demo-admin'
+    return {
+      username,
+      role: username.toLowerCase().includes('viewer') ? 'VIEWER' : 'ADMIN',
+    }
+  }
+  return (await http.get<AuthUser>('/auth/me')).data
+}
+
 let demoServices: MonitoredService[] = [
   {
     id: 1,
@@ -39,7 +101,11 @@ let demoServices: MonitoredService[] = [
     url: 'https://api.example.com/payments/health',
     method: 'GET',
     expectedStatusCode: 200,
+    expectedStatusMin: 200,
+    expectedStatusMax: 299,
     timeoutMs: 2000,
+    checkIntervalSeconds: 60,
+    responseBodyContains: null,
     failureThreshold: 3,
     active: true,
     currentStatus: 'UP',
@@ -49,6 +115,10 @@ let demoServices: MonitoredService[] = [
     lastFailureType: null,
     lastErrorMessage: null,
     rateLimitedUntil: null,
+    customHeaderNames: [],
+    authType: 'NONE',
+    authHeaderName: null,
+    authConfigured: false,
     activeIncident: false,
     createdAt: new Date(now - 8_000_000).toISOString(),
     updatedAt: new Date(now - 8_000_000).toISOString(),
@@ -59,7 +129,11 @@ let demoServices: MonitoredService[] = [
     url: 'https://api.example.com/auth/health',
     method: 'GET',
     expectedStatusCode: 200,
+    expectedStatusMin: 200,
+    expectedStatusMax: 299,
     timeoutMs: 1500,
+    checkIntervalSeconds: 30,
+    responseBodyContains: null,
     failureThreshold: 3,
     active: true,
     currentStatus: 'SLOW',
@@ -69,6 +143,10 @@ let demoServices: MonitoredService[] = [
     lastFailureType: null,
     lastErrorMessage: null,
     rateLimitedUntil: null,
+    customHeaderNames: [],
+    authType: 'NONE',
+    authHeaderName: null,
+    authConfigured: false,
     activeIncident: false,
     createdAt: new Date(now - 7_000_000).toISOString(),
     updatedAt: new Date(now - 7_000_000).toISOString(),
@@ -79,7 +157,11 @@ let demoServices: MonitoredService[] = [
     url: 'https://api.example.com/orders/health',
     method: 'GET',
     expectedStatusCode: 200,
+    expectedStatusMin: 200,
+    expectedStatusMax: 299,
     timeoutMs: 2000,
+    checkIntervalSeconds: 60,
+    responseBodyContains: '"status":"ok"',
     failureThreshold: 3,
     active: true,
     currentStatus: 'DOWN',
@@ -89,6 +171,10 @@ let demoServices: MonitoredService[] = [
     lastFailureType: 'HTTP_STATUS',
     lastErrorMessage: 'Expected HTTP 200 but received 503',
     rateLimitedUntil: null,
+    customHeaderNames: [],
+    authType: 'NONE',
+    authHeaderName: null,
+    authConfigured: false,
     activeIncident: true,
     createdAt: new Date(now - 6_000_000).toISOString(),
     updatedAt: new Date(now - 6_000_000).toISOString(),
@@ -99,7 +185,11 @@ let demoServices: MonitoredService[] = [
     url: 'https://api.example.com/inventory/health',
     method: 'GET',
     expectedStatusCode: 200,
+    expectedStatusMin: 200,
+    expectedStatusMax: 299,
     timeoutMs: 2000,
+    checkIntervalSeconds: 120,
+    responseBodyContains: null,
     failureThreshold: 4,
     active: true,
     currentStatus: 'UP',
@@ -109,6 +199,10 @@ let demoServices: MonitoredService[] = [
     lastFailureType: null,
     lastErrorMessage: null,
     rateLimitedUntil: null,
+    customHeaderNames: [],
+    authType: 'NONE',
+    authHeaderName: null,
+    authConfigured: false,
     activeIncident: false,
     createdAt: new Date(now - 5_000_000).toISOString(),
     updatedAt: new Date(now - 5_000_000).toISOString(),
@@ -172,9 +266,64 @@ function demoChecks(serviceId: number): HealthCheck[] {
   })
 }
 
+function paginate<T>(items: T[], page: number, size: number): PageResponse<T> {
+  const normalizedPage = Math.max(page, 0)
+  const normalizedSize = Math.max(size, 1)
+  const start = normalizedPage * normalizedSize
+  return {
+    content: items.slice(start, start + normalizedSize),
+    page: normalizedPage,
+    size: normalizedSize,
+    totalElements: items.length,
+    totalPages: Math.ceil(items.length / normalizedSize),
+  }
+}
+
+export async function getServicesPage(
+  page = 0,
+  size = 20,
+): Promise<PageResponse<MonitoredService>> {
+  if (demoMode) return paginate(demoServices, page, size)
+  return (
+    await http.get<PageResponse<MonitoredService>>('/services', {
+      params: { page, size },
+    })
+  ).data
+}
+
 export async function getServices(): Promise<MonitoredService[]> {
-  if (demoMode) return demoServices
-  return (await http.get<MonitoredService[]>('/services')).data
+  return (await getServicesPage(0, 100)).content
+}
+
+export async function getNotificationSettings(): Promise<NotificationSettings> {
+  if (demoMode) return demoNotificationSettings
+  return (await http.get<NotificationSettings>('/notification-settings')).data
+}
+
+export async function updateNotificationSettings(
+  input: NotificationSettingsInput,
+): Promise<NotificationSettings> {
+  if (demoMode) {
+    const webhookConfigured = input.clearWebhook
+      ? false
+      : Boolean(input.webhookUrl) || demoNotificationSettings.webhookConfigured
+    demoNotificationSettings = {
+      enabled: input.enabled && webhookConfigured,
+      webhookConfigured,
+      webhookDisplay: webhookConfigured ? 'https://hooks.example.com/****' : null,
+      cooldownSeconds: input.cooldownSeconds,
+      updatedAt: new Date().toISOString(),
+    }
+    return demoNotificationSettings
+  }
+  return (await http.put<NotificationSettings>('/notification-settings', input)).data
+}
+
+export async function getNotificationDeliveries(): Promise<NotificationDelivery[]> {
+  if (demoMode) return demoNotificationDeliveries
+  return (
+    await http.get<NotificationDelivery[]>('/notification-settings/deliveries')
+  ).data
 }
 
 export async function getService(id: number): Promise<MonitoredService> {
@@ -189,8 +338,11 @@ export async function getService(id: number): Promise<MonitoredService> {
 export async function createService(input: ServiceInput): Promise<MonitoredService> {
   if (demoMode) {
     const timestamp = new Date().toISOString()
+    const { customHeaders, authValue, clearAuthSecret, ...publicInput } = input
     const service: MonitoredService = {
-      ...input,
+      ...publicInput,
+      expectedStatusCode: input.expectedStatusMin,
+      responseBodyContains: input.responseBodyContains.trim() || null,
       id: Math.max(0, ...demoServices.map((item) => item.id)) + 1,
       currentStatus: 'UNKNOWN',
       lastCheckedAt: null,
@@ -199,6 +351,14 @@ export async function createService(input: ServiceInput): Promise<MonitoredServi
       lastFailureType: null,
       lastErrorMessage: null,
       rateLimitedUntil: null,
+      customHeaderNames: Object.keys(customHeaders ?? {}),
+      authHeaderName:
+        input.authType === 'BEARER'
+          ? 'Authorization'
+          : input.authType === 'API_KEY'
+            ? input.authHeaderName
+            : null,
+      authConfigured: !clearAuthSecret && input.authType !== 'NONE' && Boolean(authValue),
       activeIncident: false,
       createdAt: timestamp,
       updatedAt: timestamp,
@@ -215,7 +375,26 @@ export async function updateService(
 ): Promise<MonitoredService> {
   if (demoMode) {
     const existing = await getService(id)
-    const updated = { ...existing, ...input, updatedAt: new Date().toISOString() }
+    const { customHeaders, authValue, clearAuthSecret, ...publicInput } = input
+    const updated = {
+      ...existing,
+      ...publicInput,
+      expectedStatusCode: input.expectedStatusMin,
+      responseBodyContains: input.responseBodyContains.trim() || null,
+      customHeaderNames:
+        customHeaders === null ? existing.customHeaderNames : Object.keys(customHeaders),
+      authHeaderName:
+        clearAuthSecret || input.authType === 'NONE'
+          ? null
+          : input.authType === 'BEARER'
+            ? 'Authorization'
+            : input.authHeaderName,
+      authConfigured:
+        clearAuthSecret || input.authType === 'NONE'
+          ? false
+          : Boolean(authValue) || existing.authConfigured,
+      updatedAt: new Date().toISOString(),
+    }
     demoServices = demoServices.map((item) => (item.id === id ? updated : item))
     return updated
   }
@@ -228,6 +407,19 @@ export async function deleteService(id: number): Promise<void> {
     return
   }
   await http.delete(`/services/${id}`)
+}
+
+export async function setServiceActive(
+  id: number,
+  active: boolean,
+): Promise<MonitoredService> {
+  if (demoMode) {
+    const existing = await getService(id)
+    const updated = { ...existing, active, updatedAt: new Date().toISOString() }
+    demoServices = demoServices.map((service) => (service.id === id ? updated : service))
+    return updated
+  }
+  return (await http.patch<MonitoredService>(`/services/${id}/active`, { active })).data
 }
 
 export async function runCheck(id: number): Promise<HealthCheck> {
@@ -278,10 +470,41 @@ export async function runCheck(id: number): Promise<HealthCheck> {
   return (await http.post<HealthCheck>(`/services/${id}/check`)).data
 }
 
-export async function getHealthChecks(id: number, limit = 50): Promise<HealthCheck[]> {
-  if (demoMode) return demoChecks(id).slice(-limit).reverse()
+export async function getHealthChecksPage(
+  id: number,
+  page = 0,
+  size = 20,
+): Promise<PageResponse<HealthCheck>> {
+  if (demoMode) return paginate(demoChecks(id).reverse(), page, size)
   return (
-    await http.get<HealthCheck[]>(`/services/${id}/health-checks`, { params: { limit } })
+    await http.get<PageResponse<HealthCheck>>(`/services/${id}/health-checks`, {
+      params: { page, size },
+    })
+  ).data
+}
+
+export async function getHealthChecks(id: number, limit = 50): Promise<HealthCheck[]> {
+  return (await getHealthChecksPage(id, 0, limit)).content
+}
+
+export async function getIncidentsPage(
+  status?: IncidentStatus,
+  serviceId?: number,
+  page = 0,
+  size = 20,
+): Promise<PageResponse<Incident>> {
+  if (demoMode) {
+    const incidents = demoIncidents.filter(
+      (incident) =>
+        (!status || incident.status === status) &&
+        (!serviceId || incident.serviceId === serviceId),
+    )
+    return paginate(incidents, page, size)
+  }
+  return (
+    await http.get<PageResponse<Incident>>('/incidents', {
+      params: { status, serviceId, page, size },
+    })
   ).data
 }
 
@@ -289,14 +512,7 @@ export async function getIncidents(
   status?: IncidentStatus,
   serviceId?: number,
 ): Promise<Incident[]> {
-  if (demoMode) {
-    return demoIncidents.filter(
-      (incident) =>
-        (!status || incident.status === status) &&
-        (!serviceId || incident.serviceId === serviceId),
-    )
-  }
-  return (await http.get<Incident[]>('/incidents', { params: { status, serviceId } })).data
+  return (await getIncidentsPage(status, serviceId, 0, 100)).content
 }
 
 export async function resolveIncident(id: number): Promise<Incident> {
