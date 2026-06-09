@@ -45,6 +45,10 @@ let demoServices: MonitoredService[] = [
     currentStatus: 'UP',
     lastCheckedAt: new Date(now - 32_000).toISOString(),
     lastResponseTimeMs: 142,
+    lastHttpStatusCode: 200,
+    lastFailureType: null,
+    lastErrorMessage: null,
+    rateLimitedUntil: null,
     activeIncident: false,
     createdAt: new Date(now - 8_000_000).toISOString(),
     updatedAt: new Date(now - 8_000_000).toISOString(),
@@ -61,6 +65,10 @@ let demoServices: MonitoredService[] = [
     currentStatus: 'SLOW',
     lastCheckedAt: new Date(now - 41_000).toISOString(),
     lastResponseTimeMs: 1840,
+    lastHttpStatusCode: 200,
+    lastFailureType: null,
+    lastErrorMessage: null,
+    rateLimitedUntil: null,
     activeIncident: false,
     createdAt: new Date(now - 7_000_000).toISOString(),
     updatedAt: new Date(now - 7_000_000).toISOString(),
@@ -77,6 +85,10 @@ let demoServices: MonitoredService[] = [
     currentStatus: 'DOWN',
     lastCheckedAt: new Date(now - 26_000).toISOString(),
     lastResponseTimeMs: 3002,
+    lastHttpStatusCode: 503,
+    lastFailureType: 'HTTP_STATUS',
+    lastErrorMessage: 'Expected HTTP 200 but received 503',
+    rateLimitedUntil: null,
     activeIncident: true,
     createdAt: new Date(now - 6_000_000).toISOString(),
     updatedAt: new Date(now - 6_000_000).toISOString(),
@@ -93,6 +105,10 @@ let demoServices: MonitoredService[] = [
     currentStatus: 'UP',
     lastCheckedAt: new Date(now - 54_000).toISOString(),
     lastResponseTimeMs: 96,
+    lastHttpStatusCode: 200,
+    lastFailureType: null,
+    lastErrorMessage: null,
+    rateLimitedUntil: null,
     activeIncident: false,
     createdAt: new Date(now - 5_000_000).toISOString(),
     updatedAt: new Date(now - 5_000_000).toISOString(),
@@ -146,7 +162,11 @@ function demoChecks(serviceId: number): HealthCheck[] {
       httpStatusCode: status === 'DOWN' ? 503 : 200,
       responseTimeMs:
         status === 'DOWN' ? 3002 + index * 8 : status === 'SLOW' ? 1840 + index * 5 : latency,
+      failureType: status === 'DOWN' ? 'HTTP_STATUS' : null,
       errorMessage: status === 'DOWN' ? 'Unexpected HTTP status 503' : null,
+      retryAfterSeconds: null,
+      rateLimitRemaining: null,
+      rateLimitResetAt: null,
       checkedAt: new Date(now - (latencySeries.length - index) * 6 * 60_000).toISOString(),
     }
   })
@@ -175,6 +195,10 @@ export async function createService(input: ServiceInput): Promise<MonitoredServi
       currentStatus: 'UNKNOWN',
       lastCheckedAt: null,
       lastResponseTimeMs: null,
+      lastHttpStatusCode: null,
+      lastFailureType: null,
+      lastErrorMessage: null,
+      rateLimitedUntil: null,
       activeIncident: false,
       createdAt: timestamp,
       updatedAt: timestamp,
@@ -216,6 +240,10 @@ export async function runCheck(id: number): Promise<HealthCheck> {
             currentStatus: 'UP',
             lastCheckedAt: checkedAt,
             lastResponseTimeMs: 134,
+            lastHttpStatusCode: 200,
+            lastFailureType: null,
+            lastErrorMessage: null,
+            rateLimitedUntil: null,
             activeIncident: false,
           }
         : service,
@@ -239,7 +267,11 @@ export async function runCheck(id: number): Promise<HealthCheck> {
       status: 'UP',
       httpStatusCode: 200,
       responseTimeMs: 134,
+      failureType: null,
       errorMessage: null,
+      retryAfterSeconds: null,
+      rateLimitRemaining: null,
+      rateLimitResetAt: null,
       checkedAt,
     }
   }
@@ -289,7 +321,10 @@ export async function resolveIncident(id: number): Promise<Incident> {
 
 export async function getDashboardSummary(): Promise<DashboardSummary> {
   if (demoMode) {
-    const known = demoServices.filter((service) => service.currentStatus !== 'UNKNOWN')
+    const known = demoServices.filter(
+      (service) =>
+        service.currentStatus !== 'UNKNOWN' && service.currentStatus !== 'RATE_LIMITED',
+    )
     const available = known.filter(
       (service) => service.currentStatus === 'UP' || service.currentStatus === 'SLOW',
     )
@@ -301,6 +336,9 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
       upServices: demoServices.filter((service) => service.currentStatus === 'UP').length,
       slowServices: demoServices.filter((service) => service.currentStatus === 'SLOW').length,
       downServices: demoServices.filter((service) => service.currentStatus === 'DOWN').length,
+      rateLimitedServices: demoServices.filter(
+        (service) => service.currentStatus === 'RATE_LIMITED',
+      ).length,
       unknownServices: demoServices.filter((service) => service.currentStatus === 'UNKNOWN').length,
       activeIncidents: demoIncidents.filter((incident) => incident.status === 'ACTIVE').length,
       averageResponseTimeMs:

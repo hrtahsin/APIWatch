@@ -11,6 +11,8 @@ Operations teams need a fast answer to four questions: what is failing, when it 
 - Service registration and configuration through REST endpoints and the dashboard
 - Scheduled and manually triggered HTTP health checks
 - `UP`, `SLOW`, `DOWN`, and `UNKNOWN` service states
+- Dedicated `RATE_LIMITED` state with retry metadata and automatic check pauses
+- Failure diagnostics for HTTP, timeout, DNS, connection, and network errors
 - Configurable expected status, timeout, and failure threshold
 - Automatic incident creation after consecutive failures
 - Automatic and manual incident resolution
@@ -158,9 +160,11 @@ Indexes support recent health-check lookups and incident filtering. A partial un
 1. Every completed request is stored as a health check.
 2. A matching status within the latency threshold is `UP`.
 3. A matching status beyond the threshold is `SLOW`.
-4. Network errors, hard timeouts, and unexpected statuses are `DOWN`.
-5. The configured number of consecutive `DOWN` checks creates one active incident.
-6. A later `UP` check resolves the active incident and records its duration.
+4. Network errors, hard timeouts, and unexpected statuses are `DOWN` with a failure category.
+5. HTTP `429`, or `403` with an exhausted rate-limit header, is `RATE_LIMITED`.
+6. Rate-limited services pause until `Retry-After` or provider reset metadata allows a retry.
+7. The configured number of consecutive `DOWN` checks creates one active incident.
+8. A later `UP` check resolves the active incident and records its duration.
 
 ## Testing
 
@@ -195,5 +199,4 @@ Published image names:
 
 - `ghcr.io/<owner>/apiwatch-backend`
 - `ghcr.io/<owner>/apiwatch-frontend`
-
 

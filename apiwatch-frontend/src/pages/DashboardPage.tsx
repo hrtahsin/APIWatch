@@ -1,4 +1,4 @@
-import { AlertTriangle, Gauge, RadioTower, Server, Timer, TrendingUp } from 'lucide-react'
+import { AlertTriangle, Ban, Gauge, RadioTower, Server, Timer, TrendingUp } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import {
   getDashboardSummary,
@@ -84,6 +84,13 @@ export function DashboardPage() {
               detail: `${summary.activeIncidents} active incidents`,
               icon: AlertTriangle,
               tone: 'danger' as const,
+            },
+            {
+              label: 'Rate Limited',
+              value: summary.rateLimitedServices,
+              detail: 'Checks paused until retry',
+              icon: Ban,
+              tone: 'warning' as const,
             },
             {
               label: 'Average Latency',
