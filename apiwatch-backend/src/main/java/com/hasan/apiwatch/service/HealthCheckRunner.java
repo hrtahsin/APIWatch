@@ -34,18 +34,21 @@ public class HealthCheckRunner {
     private final HealthCheckRepository healthCheckRepository;
     private final ServiceMonitorService serviceMonitorService;
     private final IncidentService incidentService;
+    private final ServiceCredentialService credentialService;
     private final Set<Long> runningServiceIds = ConcurrentHashMap.newKeySet();
 
     public HealthCheckRunner(
             WebClient.Builder webClientBuilder,
             HealthCheckRepository healthCheckRepository,
             ServiceMonitorService serviceMonitorService,
-            IncidentService incidentService
+            IncidentService incidentService,
+            ServiceCredentialService credentialService
     ) {
         this.webClient = webClientBuilder.build();
         this.healthCheckRepository = healthCheckRepository;
         this.serviceMonitorService = serviceMonitorService;
         this.incidentService = incidentService;
+        this.credentialService = credentialService;
     }
 
     @Transactional
@@ -85,6 +88,7 @@ public class HealthCheckRunner {
             long hardTimeoutMs = Math.min(120_000L, service.getTimeoutMs() + 1_000L);
             EndpointResponse endpointResponse = webClient.get()
                     .uri(service.getUrl())
+                    .headers(headers -> credentialService.applyTo(service, headers))
                     .exchangeToMono(response -> {
                         HttpHeaders headers = new HttpHeaders();
                         headers.putAll(response.headers().asHttpHeaders());

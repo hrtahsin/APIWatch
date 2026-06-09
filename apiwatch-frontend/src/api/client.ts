@@ -49,6 +49,10 @@ let demoServices: MonitoredService[] = [
     lastFailureType: null,
     lastErrorMessage: null,
     rateLimitedUntil: null,
+    customHeaderNames: [],
+    authType: 'NONE',
+    authHeaderName: null,
+    authConfigured: false,
     activeIncident: false,
     createdAt: new Date(now - 8_000_000).toISOString(),
     updatedAt: new Date(now - 8_000_000).toISOString(),
@@ -69,6 +73,10 @@ let demoServices: MonitoredService[] = [
     lastFailureType: null,
     lastErrorMessage: null,
     rateLimitedUntil: null,
+    customHeaderNames: [],
+    authType: 'NONE',
+    authHeaderName: null,
+    authConfigured: false,
     activeIncident: false,
     createdAt: new Date(now - 7_000_000).toISOString(),
     updatedAt: new Date(now - 7_000_000).toISOString(),
@@ -89,6 +97,10 @@ let demoServices: MonitoredService[] = [
     lastFailureType: 'HTTP_STATUS',
     lastErrorMessage: 'Expected HTTP 200 but received 503',
     rateLimitedUntil: null,
+    customHeaderNames: [],
+    authType: 'NONE',
+    authHeaderName: null,
+    authConfigured: false,
     activeIncident: true,
     createdAt: new Date(now - 6_000_000).toISOString(),
     updatedAt: new Date(now - 6_000_000).toISOString(),
@@ -109,6 +121,10 @@ let demoServices: MonitoredService[] = [
     lastFailureType: null,
     lastErrorMessage: null,
     rateLimitedUntil: null,
+    customHeaderNames: [],
+    authType: 'NONE',
+    authHeaderName: null,
+    authConfigured: false,
     activeIncident: false,
     createdAt: new Date(now - 5_000_000).toISOString(),
     updatedAt: new Date(now - 5_000_000).toISOString(),
@@ -189,8 +205,9 @@ export async function getService(id: number): Promise<MonitoredService> {
 export async function createService(input: ServiceInput): Promise<MonitoredService> {
   if (demoMode) {
     const timestamp = new Date().toISOString()
+    const { customHeaders, authValue, clearAuthSecret, ...publicInput } = input
     const service: MonitoredService = {
-      ...input,
+      ...publicInput,
       id: Math.max(0, ...demoServices.map((item) => item.id)) + 1,
       currentStatus: 'UNKNOWN',
       lastCheckedAt: null,
@@ -199,6 +216,14 @@ export async function createService(input: ServiceInput): Promise<MonitoredServi
       lastFailureType: null,
       lastErrorMessage: null,
       rateLimitedUntil: null,
+      customHeaderNames: Object.keys(customHeaders ?? {}),
+      authHeaderName:
+        input.authType === 'BEARER'
+          ? 'Authorization'
+          : input.authType === 'API_KEY'
+            ? input.authHeaderName
+            : null,
+      authConfigured: !clearAuthSecret && input.authType !== 'NONE' && Boolean(authValue),
       activeIncident: false,
       createdAt: timestamp,
       updatedAt: timestamp,
@@ -215,7 +240,24 @@ export async function updateService(
 ): Promise<MonitoredService> {
   if (demoMode) {
     const existing = await getService(id)
-    const updated = { ...existing, ...input, updatedAt: new Date().toISOString() }
+    const { customHeaders, authValue, clearAuthSecret, ...publicInput } = input
+    const updated = {
+      ...existing,
+      ...publicInput,
+      customHeaderNames:
+        customHeaders === null ? existing.customHeaderNames : Object.keys(customHeaders),
+      authHeaderName:
+        clearAuthSecret || input.authType === 'NONE'
+          ? null
+          : input.authType === 'BEARER'
+            ? 'Authorization'
+            : input.authHeaderName,
+      authConfigured:
+        clearAuthSecret || input.authType === 'NONE'
+          ? false
+          : Boolean(authValue) || existing.authConfigured,
+      updatedAt: new Date().toISOString(),
+    }
     demoServices = demoServices.map((item) => (item.id === id ? updated : item))
     return updated
   }

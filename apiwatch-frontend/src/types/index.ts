@@ -1,5 +1,6 @@
 export type HealthStatus = 'UP' | 'DOWN' | 'SLOW' | 'RATE_LIMITED' | 'UNKNOWN'
 export type IncidentStatus = 'ACTIVE' | 'RESOLVED'
+export type RequestAuthType = 'NONE' | 'BEARER' | 'API_KEY'
 export type FailureType =
   | 'HTTP_STATUS'
   | 'TIMEOUT'
@@ -24,6 +25,10 @@ export interface MonitoredService {
   lastFailureType: FailureType | null
   lastErrorMessage: string | null
   rateLimitedUntil: string | null
+  customHeaderNames: string[]
+  authType: RequestAuthType
+  authHeaderName: string | null
+  authConfigured: boolean
   activeIncident: boolean
   createdAt: string
   updatedAt: string
@@ -89,4 +94,9 @@ export interface ServiceInput {
   timeoutMs: number
   failureThreshold: number
   active: boolean
+  customHeaders: Record<string, string> | null
+  authType: RequestAuthType
+  authHeaderName: string
+  authValue: string
+  clearAuthSecret: boolean
 }

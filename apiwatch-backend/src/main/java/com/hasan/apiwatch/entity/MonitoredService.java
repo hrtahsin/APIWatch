@@ -1,6 +1,7 @@
 package com.hasan.apiwatch.entity;
 
 import com.hasan.apiwatch.enums.HttpMethodType;
+import com.hasan.apiwatch.enums.RequestAuthType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -46,6 +47,19 @@ public class MonitoredService {
 
     @Column(name = "rate_limited_until")
     private Instant rateLimitedUntil;
+
+    @Column(name = "custom_headers_encrypted", columnDefinition = "TEXT")
+    private String customHeadersEncrypted;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "auth_type", nullable = false, length = 20)
+    private RequestAuthType authType = RequestAuthType.NONE;
+
+    @Column(name = "auth_header_name", length = 120)
+    private String authHeaderName;
+
+    @Column(name = "auth_value_encrypted", columnDefinition = "TEXT")
+    private String authValueEncrypted;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
@@ -131,6 +145,38 @@ public class MonitoredService {
 
     public void setRateLimitedUntil(Instant rateLimitedUntil) {
         this.rateLimitedUntil = rateLimitedUntil;
+    }
+
+    public String getCustomHeadersEncrypted() {
+        return customHeadersEncrypted;
+    }
+
+    public void setCustomHeadersEncrypted(String customHeadersEncrypted) {
+        this.customHeadersEncrypted = customHeadersEncrypted;
+    }
+
+    public RequestAuthType getAuthType() {
+        return authType;
+    }
+
+    public void setAuthType(RequestAuthType authType) {
+        this.authType = authType;
+    }
+
+    public String getAuthHeaderName() {
+        return authHeaderName;
+    }
+
+    public void setAuthHeaderName(String authHeaderName) {
+        this.authHeaderName = authHeaderName;
+    }
+
+    public String getAuthValueEncrypted() {
+        return authValueEncrypted;
+    }
+
+    public void setAuthValueEncrypted(String authValueEncrypted) {
+        this.authValueEncrypted = authValueEncrypted;
     }
 
     public Instant getCreatedAt() {

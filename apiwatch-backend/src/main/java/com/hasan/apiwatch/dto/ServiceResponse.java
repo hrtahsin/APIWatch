@@ -3,8 +3,10 @@ package com.hasan.apiwatch.dto;
 import com.hasan.apiwatch.enums.FailureType;
 import com.hasan.apiwatch.enums.HealthStatus;
 import com.hasan.apiwatch.enums.HttpMethodType;
+import com.hasan.apiwatch.enums.RequestAuthType;
 
 import java.time.Instant;
+import java.util.List;
 
 public record ServiceResponse(
         Long id,
@@ -22,6 +24,10 @@ public record ServiceResponse(
         FailureType lastFailureType,
         String lastErrorMessage,
         Instant rateLimitedUntil,
+        List<String> customHeaderNames,
+        RequestAuthType authType,
+        String authHeaderName,
+        boolean authConfigured,
         boolean activeIncident,
         Instant createdAt,
         Instant updatedAt
