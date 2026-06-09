@@ -31,7 +31,8 @@ class HealthCheckRunnerTest {
             WebClient.builder(),
             mock(HealthCheckRepository.class),
             mock(ServiceMonitorService.class),
-            mock(IncidentService.class)
+            mock(IncidentService.class),
+            mock(ServiceCredentialService.class)
     );
 
     @Test
@@ -84,7 +85,8 @@ class HealthCheckRunnerTest {
                 WebClient.builder().exchangeFunction(request -> Mono.never()),
                 repository,
                 mock(ServiceMonitorService.class),
-                mock(IncidentService.class)
+                mock(IncidentService.class),
+                mock(ServiceCredentialService.class)
         );
         MonitoredService service = service(12L);
         service.setTimeoutMs(100);

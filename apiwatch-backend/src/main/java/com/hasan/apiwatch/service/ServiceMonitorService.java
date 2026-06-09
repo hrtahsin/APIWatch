@@ -25,15 +25,18 @@ public class ServiceMonitorService {
     private final MonitoredServiceRepository serviceRepository;
     private final HealthCheckRepository healthCheckRepository;
     private final IncidentRepository incidentRepository;
+    private final ServiceCredentialService credentialService;
 
     public ServiceMonitorService(
             MonitoredServiceRepository serviceRepository,
             HealthCheckRepository healthCheckRepository,
-            IncidentRepository incidentRepository
+            IncidentRepository incidentRepository,
+            ServiceCredentialService credentialService
     ) {
         this.serviceRepository = serviceRepository;
         this.healthCheckRepository = healthCheckRepository;
         this.incidentRepository = incidentRepository;
+        this.credentialService = credentialService;
     }
 
     @Transactional
@@ -53,6 +56,13 @@ public class ServiceMonitorService {
                 request.timeoutMs() == null ? 2000 : request.timeoutMs(),
                 request.failureThreshold() == null ? 3 : request.failureThreshold(),
                 request.active() == null || request.active()
+        );
+        credentialService.applyCreate(
+                service,
+                request.customHeaders(),
+                request.authType(),
+                request.authHeaderName(),
+                request.authValue()
         );
         return toResponse(serviceRepository.save(service));
     }
@@ -86,6 +96,14 @@ public class ServiceMonitorService {
                 request.timeoutMs(),
                 request.failureThreshold(),
                 request.active()
+        );
+        credentialService.applyUpdate(
+                service,
+                request.customHeaders(),
+                request.authType(),
+                request.authHeaderName(),
+                request.authValue(),
+                Boolean.TRUE.equals(request.clearAuthSecret())
         );
         return toResponse(serviceRepository.save(service));
     }
@@ -154,6 +172,10 @@ public class ServiceMonitorService {
                 latest == null ? null : latest.getFailureType(),
                 latest == null ? null : latest.getErrorMessage(),
                 service.getRateLimitedUntil(),
+                credentialService.customHeaderNames(service),
+                service.getAuthType(),
+                service.getAuthHeaderName(),
+                credentialService.hasAuthSecret(service),
                 activeIncident,
                 service.getCreatedAt(),
                 service.getUpdatedAt()

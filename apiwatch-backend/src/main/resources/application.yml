@@ -25,6 +25,8 @@ apiwatch:
     interval-ms: ${APIWATCH_SCHEDULER_INTERVAL_MS:60000}
     initial-delay-ms: ${APIWATCH_SCHEDULER_INITIAL_DELAY_MS:15000}
   frontend-origin: ${APIWATCH_FRONTEND_ORIGIN:http://localhost:5173}
+  secrets:
+    encryption-key: ${APIWATCH_ENCRYPTION_KEY:YXBpd2F0Y2gtZGV2LWVuY3J5cHRpb24ta2V5LTMyYiE=}
   demo-data:
     enabled: ${APIWATCH_DEMO_DATA_ENABLED:false}
     base-url: ${APIWATCH_DEMO_BASE_URL:http://localhost:8080}
