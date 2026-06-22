@@ -1,11 +1,14 @@
 package com.hasan.apiwatch;
 
+import com.hasan.apiwatch.enums.UserRole;
+import com.hasan.apiwatch.repository.AppUserRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.web.servlet.MockMvc;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -30,6 +33,9 @@ class SecurityIntegrationTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @Autowired
+    private AppUserRepository userRepository;
 
     @Test
     void requiresAuthenticationForApiReads() throws Exception {
@@ -56,5 +62,18 @@ class SecurityIntegrationTest {
         mockMvc.perform(patch("/api/incidents/999/resolve")
                         .with(httpBasic("test-admin", "admin-password")))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void bootstrapUsersArePersistedWithEncodedPasswords() {
+        var admin = userRepository.findByUsernameIgnoreCase("test-admin").orElseThrow();
+        var viewer = userRepository.findByUsernameIgnoreCase("test-viewer").orElseThrow();
+
+        assertThat(admin.getRole()).isEqualTo(UserRole.ADMIN);
+        assertThat(admin.getPasswordHash()).startsWith("$2");
+        assertThat(admin.getPasswordHash()).doesNotContain("admin-password");
+        assertThat(viewer.getRole()).isEqualTo(UserRole.VIEWER);
+        assertThat(viewer.getPasswordHash()).startsWith("$2");
+        assertThat(viewer.getPasswordHash()).doesNotContain("viewer-password");
     }
 }

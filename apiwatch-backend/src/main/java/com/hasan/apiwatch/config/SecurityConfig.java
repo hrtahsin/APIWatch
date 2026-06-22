@@ -3,7 +3,6 @@ package com.hasan.apiwatch.config;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hasan.apiwatch.dto.ApiErrorResponse;
 import jakarta.servlet.http.HttpServletResponse;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -12,11 +11,8 @@ import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.core.userdetails.User;
-import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
 
 import java.time.Instant;
@@ -28,26 +24,6 @@ public class SecurityConfig {
     @Bean
     PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
-    }
-
-    @Bean
-    UserDetailsService userDetailsService(
-            PasswordEncoder passwordEncoder,
-            @Value("${apiwatch.auth.admin.username}") String adminUsername,
-            @Value("${apiwatch.auth.admin.password}") String adminPassword,
-            @Value("${apiwatch.auth.viewer.username}") String viewerUsername,
-            @Value("${apiwatch.auth.viewer.password}") String viewerPassword
-    ) {
-        return new InMemoryUserDetailsManager(
-                User.withUsername(adminUsername)
-                        .password(passwordEncoder.encode(adminPassword))
-                        .roles("ADMIN")
-                        .build(),
-                User.withUsername(viewerUsername)
-                        .password(passwordEncoder.encode(viewerPassword))
-                        .roles("VIEWER")
-                        .build()
-        );
     }
 
     @Bean
