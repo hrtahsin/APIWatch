@@ -38,9 +38,13 @@ public class MonitoredServiceController {
     @GetMapping
     PageResponse<ServiceResponse> findAll(
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String query,
+            @RequestParam(required = false) Boolean active,
+            @RequestParam(defaultValue = "name") String sort,
+            @RequestParam(defaultValue = "asc") String direction
     ) {
-        return serviceMonitorService.findAll(page, size);
+        return serviceMonitorService.findAll(page, size, query, active, sort, direction);
     }
 
     @GetMapping("/{id}")

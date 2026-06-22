@@ -148,6 +148,9 @@ curl -X POST http://localhost:8080/api/services \
   -d '{
     "name": "Payment Service",
     "url": "https://example.com/health",
+    "ownerName": "Finance Ops",
+    "teamName": "Platform",
+    "tags": ["payments", "critical"],
     "method": "GET",
     "expectedStatusMin": 200,
     "expectedStatusMax": 299,
@@ -175,7 +178,7 @@ Useful endpoints:
 | --- | --- | --- |
 | `POST` | `/api/services` | Register a service |
 | `GET` | `/api/auth/me` | Return the authenticated user and role |
-| `GET` | `/api/services?page=0&size=20` | List services with current state |
+| `GET` | `/api/services?page=0&size=20&query=payments&active=true&sort=team&direction=asc` | List, search, filter, and sort services with current state |
 | `PUT` | `/api/services/{id}` | Update monitoring configuration |
 | `PATCH` | `/api/services/{id}/active` | Pause or resume scheduled checks |
 | `DELETE` | `/api/services/{id}` | Delete a service and its history |
