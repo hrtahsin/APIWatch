@@ -65,6 +65,18 @@ class SecurityIntegrationTest {
     }
 
     @Test
+    void auditLogsAreAdminOnly() throws Exception {
+        mockMvc.perform(get("/api/audit-logs")
+                        .with(httpBasic("test-viewer", "viewer-password")))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(get("/api/audit-logs")
+                        .with(httpBasic("test-admin", "admin-password")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(0));
+    }
+
+    @Test
     void bootstrapUsersArePersistedWithEncodedPasswords() {
         var admin = userRepository.findByUsernameIgnoreCase("test-admin").orElseThrow();
         var viewer = userRepository.findByUsernameIgnoreCase("test-viewer").orElseThrow();

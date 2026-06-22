@@ -168,6 +168,23 @@ class MonitoringWorkflowIntegrationTest {
         assertThat(notificationDeliveryRepository.findAll()).isEmpty();
     }
 
+    @Test
+    void serviceMutationCreatesAuditLogEntry() throws Exception {
+        createService("Audit API", baseUrl + "/flaky", 3);
+
+        String response = mockMvc.perform(get("/api/audit-logs")
+                        .with(httpBasic("test-admin", "admin-password")))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        assertThat(response)
+                .contains("\"actorUsername\":\"test-admin\"")
+                .contains("\"action\":\"SERVICE_CREATED\"")
+                .contains("\"targetName\":\"Audit API\"");
+    }
+
     private long createService(String name, String url, int failureThreshold) throws Exception {
         String response = mockMvc.perform(post("/api/services")
                         .with(httpBasic("test-admin", "admin-password"))

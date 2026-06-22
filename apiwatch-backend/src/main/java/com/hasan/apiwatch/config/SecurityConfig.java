@@ -41,6 +41,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/api/mock/**").permitAll()
                         .requestMatchers("/api/auth/me").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/api/audit-logs/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/**")
                         .hasAnyRole("ADMIN", "VIEWER")
                         .requestMatchers("/api/**").hasRole("ADMIN")

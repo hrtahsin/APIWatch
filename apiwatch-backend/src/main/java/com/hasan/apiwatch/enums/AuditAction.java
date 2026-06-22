@@ -1,0 +1,11 @@
+package com.hasan.apiwatch.enums;
+
+public enum AuditAction {
+    SERVICE_CREATED,
+    SERVICE_UPDATED,
+    SERVICE_DELETED,
+    SERVICE_PAUSED,
+    SERVICE_RESUMED,
+    INCIDENT_RESOLVED,
+    NOTIFICATION_SETTINGS_UPDATED
+}
