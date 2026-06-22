@@ -93,6 +93,9 @@ Open:
 
 Sign in with the administrator or viewer credentials configured in `.env`.
 Replace both example passwords before exposing APIWatch outside local development.
+On startup, APIWatch stores these bootstrap users in the database with BCrypt
+password hashes. Updating the environment values updates the bootstrap users on
+the next application start.
 
 Compose enables demo seeding by default. It registers healthy, slow, failing, GitHub, and JSONPlaceholder services. The scheduler starts checking them after 15 seconds.
 
@@ -187,6 +190,7 @@ Useful endpoints:
 | `GET` | `/api/notification-settings` | Get masked webhook configuration |
 | `PUT` | `/api/notification-settings` | Configure webhook delivery and cooldown |
 | `GET` | `/api/notification-settings/deliveries` | Review recent delivery attempts |
+| `GET` | `/api/audit-logs?page=0&size=20` | Review admin audit events |
 | `GET` | `/api/dashboard/summary` | Get platform summary metrics |
 
 ## Data Model
@@ -194,6 +198,8 @@ Useful endpoints:
 - `services`: endpoint configuration and failure policy
 - `health_checks`: immutable check result history
 - `incidents`: active and resolved outage records
+- `app_users`: BCrypt-hashed admin and viewer accounts
+- `audit_logs`: admin mutation history for service, incident, and notification changes
 
 Indexes support recent health-check lookups and incident filtering. A partial unique index prevents duplicate active incidents for the same service.
 
