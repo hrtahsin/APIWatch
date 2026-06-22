@@ -8,6 +8,9 @@ const service: MonitoredService = {
   id: 1,
   name: 'Payments API',
   url: 'https://api.example.com/health',
+  ownerName: 'Finance Ops',
+  teamName: 'Platform',
+  tags: ['payments', 'critical'],
   method: 'GET',
   expectedStatusCode: 200,
   expectedStatusMin: 200,
@@ -44,6 +47,8 @@ describe('ServiceTable', () => {
     expect(screen.queryByRole('button', { name: 'Pause Payments API' })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Edit Payments API' })).not.toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'View Payments API' })).toBeInTheDocument()
+    expect(screen.getByText('Finance Ops / Platform')).toBeInTheDocument()
+    expect(screen.getByText('payments')).toBeInTheDocument()
   })
 
   it('invokes pause control for administrators', async () => {

@@ -26,6 +26,9 @@ export interface MonitoredService {
   id: number
   name: string
   url: string
+  ownerName: string | null
+  teamName: string | null
+  tags: string[]
   method: 'GET'
   expectedStatusCode: number
   expectedStatusMin: number
@@ -106,6 +109,9 @@ export interface ServiceMetrics {
 export interface ServiceInput {
   name: string
   url: string
+  ownerName: string
+  teamName: string
+  tags: string[]
   method: 'GET'
   expectedStatusMin: number
   expectedStatusMax: number
