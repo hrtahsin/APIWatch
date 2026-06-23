@@ -14,6 +14,7 @@ import {
 import { useState } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth'
+import { requestAppRefresh } from '../hooks/useAutoRefresh'
 
 const navigation = [
   { to: '/', label: 'Overview', icon: Gauge },
@@ -128,7 +129,7 @@ export function AppLayout() {
           </div>
           <div className="topbar-actions">
             <span className="refresh-meta">Auto-refreshes every 60s</span>
-            <button className="icon-button" onClick={() => window.location.reload()} aria-label="Refresh data">
+            <button className="icon-button" onClick={requestAppRefresh} aria-label="Refresh data">
               <RefreshCw size={17} />
             </button>
             {canManage && (

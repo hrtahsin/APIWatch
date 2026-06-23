@@ -3,6 +3,7 @@ import { getApiErrorMessage, getIncidentsPage, resolveIncident } from '../api/cl
 import { useAuth } from '../auth/useAuth'
 import { IncidentTable } from '../components/IncidentTable'
 import { Pagination } from '../components/Pagination'
+import { useAutoRefresh } from '../hooks/useAutoRefresh'
 import type { Incident, IncidentStatus } from '../types'
 
 const filters: Array<'ALL' | IncidentStatus> = ['ALL', 'ACTIVE', 'RESOLVED']
@@ -30,15 +31,23 @@ export function IncidentsPage() {
     setTotalPages(response.totalPages)
   }, [filter, page])
 
-  useEffect(() => {
-    setLoading(true)
-    load()
+  const refresh = useCallback(async (showLoading = false) => {
+    if (showLoading) setLoading(true)
+    await load()
       .then(() => setError(null))
       .catch((loadError) => {
         setError(getApiErrorMessage(loadError, 'Unable to load incidents'))
       })
-      .finally(() => setLoading(false))
+      .finally(() => {
+        if (showLoading) setLoading(false)
+      })
   }, [load])
+
+  useEffect(() => {
+    void refresh(true)
+  }, [refresh])
+
+  useAutoRefresh(() => refresh(false))
 
   async function handleResolve(id: number) {
     try {

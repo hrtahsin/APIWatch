@@ -185,6 +185,50 @@ class MonitoringWorkflowIntegrationTest {
                 .contains("\"targetName\":\"Audit API\"");
     }
 
+    @Test
+    void serviceDiscoverySearchesMetadataAndFiltersMonitoringState() throws Exception {
+        createServiceWithMetadata(
+                "Billing API",
+                baseUrl + "/flaky",
+                "Finance Ops",
+                "Platform",
+                """
+                        ["payments", "critical"]
+                        """,
+                true
+        );
+        createServiceWithMetadata(
+                "Marketing API",
+                baseUrl + "/flaky",
+                "Growth",
+                "Lifecycle",
+                """
+                        ["campaigns"]
+                        """,
+                false
+        );
+
+        mockMvc.perform(get("/api/services")
+                        .param("query", "finance")
+                        .param("active", "true")
+                        .param("sort", "team")
+                        .with(httpBasic("test-viewer", "viewer-password")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.content[0].name").value("Billing API"))
+                .andExpect(jsonPath("$.content[0].ownerName").value("Finance Ops"))
+                .andExpect(jsonPath("$.content[0].teamName").value("Platform"))
+                .andExpect(jsonPath("$.content[0].tags[0]").value("payments"));
+
+        mockMvc.perform(get("/api/services")
+                        .param("query", "campaigns")
+                        .param("active", "false")
+                        .with(httpBasic("test-viewer", "viewer-password")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.content[0].name").value("Marketing API"));
+    }
+
     private long createService(String name, String url, int failureThreshold) throws Exception {
         String response = mockMvc.perform(post("/api/services")
                         .with(httpBasic("test-admin", "admin-password"))
@@ -203,6 +247,42 @@ class MonitoringWorkflowIntegrationTest {
                                   "authType": "NONE"
                                 }
                                 """.formatted(name, url, failureThreshold)))
+                .andExpect(status().isCreated())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        JsonNode json = objectMapper.readTree(response);
+        return json.get("id").asLong();
+    }
+
+    private long createServiceWithMetadata(
+            String name,
+            String url,
+            String ownerName,
+            String teamName,
+            String tags,
+            boolean active
+    ) throws Exception {
+        String response = mockMvc.perform(post("/api/services")
+                        .with(httpBasic("test-admin", "admin-password"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "name": "%s",
+                                  "url": "%s",
+                                  "ownerName": "%s",
+                                  "teamName": "%s",
+                                  "tags": %s,
+                                  "method": "GET",
+                                  "expectedStatusMin": 200,
+                                  "expectedStatusMax": 299,
+                                  "timeoutMs": 2000,
+                                  "checkIntervalSeconds": 60,
+                                  "failureThreshold": 3,
+                                  "active": %s,
+                                  "authType": "NONE"
+                                }
+                                """.formatted(name, url, ownerName, teamName, tags, active)))
                 .andExpect(status().isCreated())
                 .andReturn()
                 .getResponse()
