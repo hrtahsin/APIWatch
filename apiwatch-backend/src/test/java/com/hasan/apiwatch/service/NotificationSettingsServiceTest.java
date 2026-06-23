@@ -2,6 +2,7 @@ package com.hasan.apiwatch.service;
 
 import com.hasan.apiwatch.dto.UpdateNotificationSettingsRequest;
 import com.hasan.apiwatch.entity.NotificationSettings;
+import com.hasan.apiwatch.enums.NotificationProvider;
 import com.hasan.apiwatch.repository.NotificationSettingsRepository;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -34,9 +35,13 @@ class NotificationSettingsServiceTest {
 
         var response = service.update(new UpdateNotificationSettingsRequest(
                 true,
+                NotificationProvider.WEBHOOK,
                 "https://hooks.example.com/private/token",
                 false,
-                300
+                null,
+                false,
+                300,
+                0
         ));
 
         ArgumentCaptor<NotificationSettings> captor =
@@ -46,6 +51,12 @@ class NotificationSettingsServiceTest {
         assertThat(saved.getWebhookUrlEncrypted())
                 .doesNotContain("hooks.example.com")
                 .startsWith("v1:");
+        assertThat(saved.getDestinationEncrypted())
+                .doesNotContain("hooks.example.com")
+                .startsWith("v1:");
+        assertThat(response.provider()).isEqualTo(NotificationProvider.WEBHOOK);
+        assertThat(response.destinationDisplay()).isEqualTo("https://hooks.example.com/****");
+        assertThat(response.destinationConfigured()).isTrue();
         assertThat(response.webhookDisplay()).isEqualTo("https://hooks.example.com/****");
         assertThat(response.webhookConfigured()).isTrue();
     }

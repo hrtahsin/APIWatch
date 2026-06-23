@@ -70,9 +70,13 @@ export interface ServiceListOptions {
 
 let demoNotificationSettings: NotificationSettings = {
   enabled: false,
+  provider: 'WEBHOOK',
+  destinationConfigured: false,
+  destinationDisplay: null,
   webhookConfigured: false,
   webhookDisplay: null,
   cooldownSeconds: 300,
+  escalationMinutes: 0,
   updatedAt: null,
 }
 
@@ -143,6 +147,9 @@ let demoServices: MonitoredService[] = [
     checkIntervalSeconds: 60,
     responseBodyContains: null,
     failureThreshold: 3,
+    notifyOnIncidentOpen: true,
+    notifyOnIncidentResolve: true,
+    notificationEscalationMinutes: 0,
     active: true,
     currentStatus: 'UP',
     lastCheckedAt: new Date(now - 32_000).toISOString(),
@@ -174,6 +181,9 @@ let demoServices: MonitoredService[] = [
     checkIntervalSeconds: 30,
     responseBodyContains: null,
     failureThreshold: 3,
+    notifyOnIncidentOpen: true,
+    notifyOnIncidentResolve: true,
+    notificationEscalationMinutes: 0,
     active: true,
     currentStatus: 'SLOW',
     lastCheckedAt: new Date(now - 41_000).toISOString(),
@@ -205,6 +215,9 @@ let demoServices: MonitoredService[] = [
     checkIntervalSeconds: 60,
     responseBodyContains: '"status":"ok"',
     failureThreshold: 3,
+    notifyOnIncidentOpen: true,
+    notifyOnIncidentResolve: true,
+    notificationEscalationMinutes: 15,
     active: true,
     currentStatus: 'DOWN',
     lastCheckedAt: new Date(now - 26_000).toISOString(),
@@ -236,6 +249,9 @@ let demoServices: MonitoredService[] = [
     checkIntervalSeconds: 120,
     responseBodyContains: null,
     failureThreshold: 4,
+    notifyOnIncidentOpen: true,
+    notifyOnIncidentResolve: true,
+    notificationEscalationMinutes: 0,
     active: true,
     currentStatus: 'UP',
     lastCheckedAt: new Date(now - 54_000).toISOString(),
@@ -406,19 +422,40 @@ export async function updateNotificationSettings(
   input: NotificationSettingsInput,
 ): Promise<NotificationSettings> {
   if (demoMode) {
-    const webhookConfigured = input.clearWebhook
+    const destinationConfigured = input.clearDestination
       ? false
-      : Boolean(input.webhookUrl) || demoNotificationSettings.webhookConfigured
+      : Boolean(input.destination) || demoNotificationSettings.destinationConfigured
     demoNotificationSettings = {
-      enabled: input.enabled && webhookConfigured,
-      webhookConfigured,
-      webhookDisplay: webhookConfigured ? 'https://hooks.example.com/****' : null,
+      enabled: input.enabled && destinationConfigured,
+      provider: input.provider,
+      destinationConfigured,
+      destinationDisplay: destinationConfigured ? demoDestinationDisplay(input.provider) : null,
+      webhookConfigured: destinationConfigured && ['WEBHOOK', 'SLACK', 'DISCORD'].includes(input.provider),
+      webhookDisplay: destinationConfigured ? demoDestinationDisplay(input.provider) : null,
       cooldownSeconds: input.cooldownSeconds,
+      escalationMinutes: input.escalationMinutes,
       updatedAt: new Date().toISOString(),
     }
     return demoNotificationSettings
   }
   return (await http.put<NotificationSettings>('/notification-settings', input)).data
+}
+
+function demoDestinationDisplay(provider: NotificationSettingsInput['provider']): string {
+  switch (provider) {
+    case 'EMAIL':
+      return 'a****@example.com'
+    case 'PAGERDUTY':
+      return 'Configured PagerDuty integration key'
+    case 'OPSGENIE':
+      return 'Configured Opsgenie API key'
+    case 'SLACK':
+      return 'https://hooks.slack.com/****'
+    case 'DISCORD':
+      return 'https://discord.com/****'
+    default:
+      return 'https://hooks.example.com/****'
+  }
 }
 
 export async function getNotificationDeliveries(): Promise<NotificationDelivery[]> {

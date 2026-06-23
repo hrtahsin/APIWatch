@@ -84,6 +84,11 @@ public class ServiceMonitorService {
                 request.checkIntervalSeconds() == null ? 60 : request.checkIntervalSeconds(),
                 request.responseBodyContains(),
                 request.failureThreshold() == null ? 3 : request.failureThreshold(),
+                request.notifyOnIncidentOpen() == null || request.notifyOnIncidentOpen(),
+                request.notifyOnIncidentResolve() == null || request.notifyOnIncidentResolve(),
+                request.notificationEscalationMinutes() == null
+                        ? 0
+                        : request.notificationEscalationMinutes(),
                 request.active() == null || request.active()
         );
         credentialService.applyCreate(
@@ -164,6 +169,15 @@ public class ServiceMonitorService {
                 request.checkIntervalSeconds(),
                 request.responseBodyContains(),
                 request.failureThreshold(),
+                request.notifyOnIncidentOpen() == null
+                        ? service.isNotifyOnIncidentOpen()
+                        : request.notifyOnIncidentOpen(),
+                request.notifyOnIncidentResolve() == null
+                        ? service.isNotifyOnIncidentResolve()
+                        : request.notifyOnIncidentResolve(),
+                request.notificationEscalationMinutes() == null
+                        ? service.getNotificationEscalationMinutes()
+                        : request.notificationEscalationMinutes(),
                 request.active()
         );
         credentialService.applyUpdate(
@@ -248,6 +262,9 @@ public class ServiceMonitorService {
             int checkIntervalSeconds,
             String responseBodyContains,
             int failureThreshold,
+            boolean notifyOnIncidentOpen,
+            boolean notifyOnIncidentResolve,
+            int notificationEscalationMinutes,
             boolean active
     ) {
         service.setName(name);
@@ -263,6 +280,9 @@ public class ServiceMonitorService {
         service.setCheckIntervalSeconds(checkIntervalSeconds);
         service.setResponseBodyContains(normalizeOptional(responseBodyContains));
         service.setFailureThreshold(failureThreshold);
+        service.setNotifyOnIncidentOpen(notifyOnIncidentOpen);
+        service.setNotifyOnIncidentResolve(notifyOnIncidentResolve);
+        service.setNotificationEscalationMinutes(notificationEscalationMinutes);
         service.setActive(active);
     }
 
@@ -383,6 +403,9 @@ public class ServiceMonitorService {
                 service.getCheckIntervalSeconds(),
                 service.getResponseBodyContains(),
                 service.getFailureThreshold(),
+                service.isNotifyOnIncidentOpen(),
+                service.isNotifyOnIncidentResolve(),
+                service.getNotificationEscalationMinutes(),
                 service.isActive(),
                 latest == null ? HealthStatus.UNKNOWN : latest.getStatus(),
                 latest == null ? null : latest.getCheckedAt(),

@@ -17,6 +17,9 @@ const defaultForm: ServiceInput = {
   checkIntervalSeconds: 60,
   responseBodyContains: '',
   failureThreshold: 3,
+  notifyOnIncidentOpen: true,
+  notifyOnIncidentResolve: true,
+  notificationEscalationMinutes: 0,
   active: true,
   customHeaders: null,
   authType: 'NONE',
@@ -75,6 +78,9 @@ export function ServiceFormPage() {
           checkIntervalSeconds: service.checkIntervalSeconds,
           responseBodyContains: service.responseBodyContains ?? '',
           failureThreshold: service.failureThreshold,
+          notifyOnIncidentOpen: service.notifyOnIncidentOpen,
+          notifyOnIncidentResolve: service.notifyOnIncidentResolve,
+          notificationEscalationMinutes: service.notificationEscalationMinutes,
           active: service.active,
           customHeaders: null,
           authType: service.authType,
@@ -285,6 +291,57 @@ export function ServiceFormPage() {
             <small>Inactive services stay registered but are skipped by the scheduler.</small>
           </span>
         </label>
+
+        <div className="form-section">
+          <div>
+            <span className="eyebrow">Notifications</span>
+            <h3>Incident routing rules</h3>
+            <p>Control which incident lifecycle events should notify the configured provider.</p>
+          </div>
+
+          <div className="notification-rule-grid">
+            <label className="toggle-row compact-toggle">
+              <input
+                checked={form.notifyOnIncidentOpen}
+                onChange={(event) => update('notifyOnIncidentOpen', event.target.checked)}
+                type="checkbox"
+              />
+              <span>
+                <strong>Notify when incidents open</strong>
+                <small>Queue a notification when this service crosses its failure threshold.</small>
+              </span>
+            </label>
+
+            <label className="toggle-row compact-toggle">
+              <input
+                checked={form.notifyOnIncidentResolve}
+                onChange={(event) => update('notifyOnIncidentResolve', event.target.checked)}
+                type="checkbox"
+              />
+              <span>
+                <strong>Notify when incidents resolve</strong>
+                <small>Send a recovery notification when the service returns to UP.</small>
+              </span>
+            </label>
+
+            <label>
+              <span>Escalation delay minutes</span>
+              <input
+                min={0}
+                max={10080}
+                type="number"
+                value={form.notificationEscalationMinutes}
+                onChange={(event) =>
+                  update('notificationEscalationMinutes', Number(event.target.value))
+                }
+              />
+              <small>
+                Delay open-incident notifications. If the incident resolves first, the queued
+                alert is skipped.
+              </small>
+            </label>
+          </div>
+        </div>
 
         <div className="form-section">
           <div>

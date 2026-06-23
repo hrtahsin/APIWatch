@@ -8,6 +8,7 @@ import {
 } from '../api/client'
 import type {
   NotificationDelivery,
+  NotificationProvider,
   NotificationSettings,
   NotificationSettingsInput,
 } from '../types'
@@ -15,14 +16,72 @@ import { formatDate } from '../utils/format'
 
 const defaultInput: NotificationSettingsInput = {
   enabled: false,
-  webhookUrl: '',
-  clearWebhook: false,
+  provider: 'WEBHOOK',
+  destination: '',
+  clearDestination: false,
   cooldownSeconds: 300,
+  escalationMinutes: 0,
 }
 
 const eventLabels = {
   INCIDENT_OPENED: 'Incident opened',
   INCIDENT_RESOLVED: 'Incident resolved',
+}
+
+const providerLabels: Record<NotificationProvider, string> = {
+  WEBHOOK: 'Generic webhook',
+  SLACK: 'Slack webhook',
+  DISCORD: 'Discord webhook',
+  EMAIL: 'Email',
+  PAGERDUTY: 'PagerDuty',
+  OPSGENIE: 'Opsgenie',
+}
+
+function destinationLabel(provider: NotificationProvider): string {
+  switch (provider) {
+    case 'EMAIL':
+      return 'Email recipient'
+    case 'PAGERDUTY':
+      return 'PagerDuty routing key'
+    case 'OPSGENIE':
+      return 'Opsgenie API key'
+    case 'SLACK':
+      return 'Slack webhook URL'
+    case 'DISCORD':
+      return 'Discord webhook URL'
+    default:
+      return 'Webhook URL'
+  }
+}
+
+function destinationPlaceholder(provider: NotificationProvider): string {
+  switch (provider) {
+    case 'EMAIL':
+      return 'alerts@example.com'
+    case 'PAGERDUTY':
+      return 'PagerDuty Events API v2 routing key'
+    case 'OPSGENIE':
+      return 'Opsgenie API key'
+    case 'SLACK':
+      return 'https://hooks.slack.com/services/...'
+    case 'DISCORD':
+      return 'https://discord.com/api/webhooks/...'
+    default:
+      return 'https://hooks.example.com/apiwatch'
+  }
+}
+
+function destinationHelp(provider: NotificationProvider): string {
+  switch (provider) {
+    case 'EMAIL':
+      return 'Requires backend SMTP configuration through Spring mail environment variables.'
+    case 'PAGERDUTY':
+      return 'Stored encrypted. Used as the PagerDuty Events API v2 routing key.'
+    case 'OPSGENIE':
+      return 'Stored encrypted. Used as the Opsgenie API key for create and close alert calls.'
+    default:
+      return 'Stored encrypted. URL targets are still SSRF-validated before delivery.'
+  }
 }
 
 export function SettingsPage() {
@@ -40,9 +99,11 @@ export function SettingsPage() {
         setSettings(settingsResponse)
         setForm({
           enabled: settingsResponse.enabled,
-          webhookUrl: '',
-          clearWebhook: false,
+          provider: settingsResponse.provider,
+          destination: '',
+          clearDestination: false,
           cooldownSeconds: settingsResponse.cooldownSeconds,
+          escalationMinutes: settingsResponse.escalationMinutes,
         })
         setDeliveries(deliveryResponse)
       })
@@ -54,10 +115,11 @@ export function SettingsPage() {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    const hasWebhook = Boolean(form.webhookUrl.trim()) ||
-      (settings?.webhookConfigured && !form.clearWebhook)
-    if (form.enabled && !hasWebhook) {
-      setError('Configure a webhook URL before enabling notifications.')
+    const hasDestination =
+      Boolean(form.destination.trim()) ||
+      (settings?.destinationConfigured && !form.clearDestination)
+    if (form.enabled && !hasDestination) {
+      setError('Configure a notification destination before enabling notifications.')
       return
     }
     try {
@@ -65,17 +127,20 @@ export function SettingsPage() {
       setSaved(false)
       const updated = await updateNotificationSettings({
         ...form,
-        webhookUrl: form.webhookUrl.trim(),
+        destination: form.destination.trim(),
       })
       setSettings(updated)
       setForm({
         enabled: updated.enabled,
-        webhookUrl: '',
-        clearWebhook: false,
+        provider: updated.provider,
+        destination: '',
+        clearDestination: false,
         cooldownSeconds: updated.cooldownSeconds,
+        escalationMinutes: updated.escalationMinutes,
       })
       setSaved(true)
       setError(null)
+      setDeliveries(await getNotificationDeliveries())
     } catch (saveError) {
       setError(getApiErrorMessage(saveError, 'Unable to save notification settings'))
     } finally {
@@ -93,7 +158,7 @@ export function SettingsPage() {
         <div className="panel-header">
           <div>
             <span>Notifications</span>
-            <h2>Incident webhooks</h2>
+            <h2>Incident delivery</h2>
           </div>
           <BellRing size={22} />
         </div>
@@ -110,65 +175,105 @@ export function SettingsPage() {
             />
             <span>
               <strong>Send incident lifecycle notifications</strong>
-              <small>Deliver a webhook when an incident opens or resolves.</small>
+              <small>Queue async notifications when incidents open or resolve.</small>
             </span>
           </label>
 
           <label>
-            <span>Webhook URL</span>
-            <input
-              value={form.webhookUrl}
+            <span>Provider</span>
+            <select
+              value={form.provider}
               onChange={(event) =>
-                setForm((current) => ({ ...current, webhookUrl: event.target.value }))
+                setForm((current) => ({
+                  ...current,
+                  provider: event.target.value as NotificationProvider,
+                  destination: '',
+                }))
+              }
+            >
+              {Object.entries(providerLabels).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label>
+            <span>{destinationLabel(form.provider)}</span>
+            <input
+              value={form.destination}
+              onChange={(event) =>
+                setForm((current) => ({ ...current, destination: event.target.value }))
               }
               placeholder={
-                settings?.webhookConfigured
-                  ? 'Leave blank to keep the stored webhook'
-                  : 'https://hooks.example.com/apiwatch'
+                settings?.destinationConfigured
+                  ? 'Leave blank to keep the stored destination'
+                  : destinationPlaceholder(form.provider)
               }
-              type="password"
+              type={form.provider === 'EMAIL' ? 'email' : 'password'}
             />
             <small>
-              Stored encrypted. API responses expose only {settings?.webhookDisplay ?? 'a masked host'}.
+              {destinationHelp(form.provider)} API responses show only{' '}
+              {settings?.destinationDisplay ?? 'a masked destination'}.
             </small>
           </label>
 
-          {settings?.webhookConfigured && (
+          {settings?.destinationConfigured && (
             <label className="toggle-row compact-toggle">
               <input
-                checked={form.clearWebhook}
+                checked={form.clearDestination}
                 onChange={(event) =>
                   setForm((current) => ({
                     ...current,
-                    clearWebhook: event.target.checked,
+                    clearDestination: event.target.checked,
                     enabled: event.target.checked ? false : current.enabled,
                   }))
                 }
                 type="checkbox"
               />
               <span>
-                <strong>Remove stored webhook</strong>
+                <strong>Remove stored destination</strong>
                 <small>This disables notifications after saving.</small>
               </span>
             </label>
           )}
 
-          <label>
-            <span>Cooldown seconds</span>
-            <input
-              min={0}
-              max={86400}
-              type="number"
-              value={form.cooldownSeconds}
-              onChange={(event) =>
-                setForm((current) => ({
-                  ...current,
-                  cooldownSeconds: Number(event.target.value),
-                }))
-              }
-            />
-            <small>Suppress repeated notifications for the same service and event type.</small>
-          </label>
+          <div className="form-grid">
+            <label>
+              <span>Cooldown seconds</span>
+              <input
+                min={0}
+                max={86400}
+                type="number"
+                value={form.cooldownSeconds}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    cooldownSeconds: Number(event.target.value),
+                  }))
+                }
+              />
+              <small>Suppress repeated notifications for the same service and event type.</small>
+            </label>
+
+            <label>
+              <span>Global escalation delay minutes</span>
+              <input
+                min={0}
+                max={10080}
+                type="number"
+                value={form.escalationMinutes}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    escalationMinutes: Number(event.target.value),
+                  }))
+                }
+              />
+              <small>Applies to incident-open notifications unless a service uses a longer delay.</small>
+            </label>
+          </div>
 
           <button className="primary-button settings-save" disabled={saving} type="submit">
             <Save size={17} />
@@ -181,29 +286,42 @@ export function SettingsPage() {
         <div className="panel-header">
           <div>
             <span>Delivery audit</span>
-            <h2>Recent webhook attempts</h2>
+            <h2>Recent notification attempts</h2>
           </div>
           <ShieldCheck size={22} />
         </div>
         {deliveries.length === 0 ? (
-          <div className="empty-state">No webhook deliveries have been attempted yet.</div>
+          <div className="empty-state">No notification deliveries have been queued yet.</div>
         ) : (
           <div className="table-scroll">
             <table className="data-table">
               <thead>
                 <tr>
+                  <th>Provider</th>
                   <th>Event</th>
                   <th>Status</th>
                   <th>HTTP</th>
-                  <th>Attempted</th>
+                  <th>Attempts</th>
+                  <th>Next attempt</th>
+                  <th>Queued</th>
                 </tr>
               </thead>
               <tbody>
                 {deliveries.map((delivery) => (
                   <tr key={delivery.id}>
+                    <td>
+                      {providerLabels[delivery.provider]}
+                      {delivery.destinationDisplay && (
+                        <small className="table-subtext">{delivery.destinationDisplay}</small>
+                      )}
+                    </td>
                     <td>{eventLabels[delivery.eventType]}</td>
                     <td>{delivery.status.replaceAll('_', ' ')}</td>
                     <td>{delivery.httpStatusCode ?? '—'}</td>
+                    <td>{delivery.attemptCount}</td>
+                    <td className="muted-cell">
+                      {delivery.nextAttemptAt ? formatDate(delivery.nextAttemptAt) : '—'}
+                    </td>
                     <td className="muted-cell">{formatDate(delivery.attemptedAt)}</td>
                   </tr>
                 ))}
