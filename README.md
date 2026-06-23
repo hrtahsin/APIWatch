@@ -10,6 +10,7 @@ Operations teams need a fast answer to four questions: what is failing, when it 
 
 - Service registration and configuration through REST endpoints and the dashboard
 - Scheduled and manually triggered HTTP health checks
+- Async scheduled monitoring workers with database leases to avoid duplicate checks
 - `UP`, `SLOW`, `DOWN`, and `UNKNOWN` service states
 - Dedicated `RATE_LIMITED` state with retry metadata and automatic check pauses
 - Failure diagnostics for HTTP, timeout, DNS, connection, and network errors
@@ -98,6 +99,12 @@ password hashes. Updating the environment values updates the bootstrap users on
 the next application start.
 
 Compose enables demo seeding by default. It registers healthy, slow, failing, GitHub, and JSONPlaceholder services. The scheduler starts checking them after 15 seconds.
+
+Scheduled checks are dispatched to a bounded worker pool. Tune
+`APIWATCH_SCHEDULER_WORKER_POOL_SIZE`, `APIWATCH_SCHEDULER_QUEUE_CAPACITY`,
+`APIWATCH_SCHEDULER_LEASE_SECONDS`, and optional
+`APIWATCH_SCHEDULER_INSTANCE_ID` when running larger service inventories or
+multiple backend replicas.
 
 Stop the stack:
 
@@ -204,7 +211,9 @@ Useful endpoints:
 - `app_users`: BCrypt-hashed admin and viewer accounts
 - `audit_logs`: admin mutation history for service, incident, and notification changes
 
-Indexes support recent health-check lookups and incident filtering. A partial unique index prevents duplicate active incidents for the same service.
+Indexes support recent health-check lookups, incident filtering, and lease
+expiry scans. A partial unique index prevents duplicate active incidents for the
+same service.
 
 Paged endpoints return `content`, `page`, `size`, `totalElements`, and
 `totalPages`. Page indexes start at zero and page size is capped at 100.

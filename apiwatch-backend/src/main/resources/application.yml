@@ -24,6 +24,10 @@ apiwatch:
     enabled: ${APIWATCH_SCHEDULER_ENABLED:true}
     interval-ms: ${APIWATCH_SCHEDULER_INTERVAL_MS:5000}
     initial-delay-ms: ${APIWATCH_SCHEDULER_INITIAL_DELAY_MS:15000}
+    worker-pool-size: ${APIWATCH_SCHEDULER_WORKER_POOL_SIZE:4}
+    queue-capacity: ${APIWATCH_SCHEDULER_QUEUE_CAPACITY:100}
+    lease-seconds: ${APIWATCH_SCHEDULER_LEASE_SECONDS:120}
+    instance-id: ${APIWATCH_SCHEDULER_INSTANCE_ID:}
   retention:
     enabled: ${APIWATCH_RETENTION_ENABLED:true}
     health-check-days: ${APIWATCH_RETENTION_HEALTH_CHECK_DAYS:90}
