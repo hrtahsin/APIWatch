@@ -29,6 +29,15 @@ public class MonitoredService {
     @Column(nullable = false, columnDefinition = "TEXT")
     private String url;
 
+    @Column(name = "owner_name", length = 120)
+    private String ownerName;
+
+    @Column(name = "team_name", length = 120)
+    private String teamName;
+
+    @Column(length = 500)
+    private String tags;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 10)
     private HttpMethodType method = HttpMethodType.GET;
@@ -109,6 +118,30 @@ public class MonitoredService {
 
     public void setUrl(String url) {
         this.url = url;
+    }
+
+    public String getOwnerName() {
+        return ownerName;
+    }
+
+    public void setOwnerName(String ownerName) {
+        this.ownerName = ownerName;
+    }
+
+    public String getTeamName() {
+        return teamName;
+    }
+
+    public void setTeamName(String teamName) {
+        this.teamName = teamName;
+    }
+
+    public String getTags() {
+        return tags;
+    }
+
+    public void setTags(String tags) {
+        this.tags = tags;
     }
 
     public HttpMethodType getMethod() {

@@ -94,6 +94,9 @@ Open:
 
 Sign in with the administrator or viewer credentials configured in `.env`.
 Replace both example passwords before exposing APIWatch outside local development.
+On startup, APIWatch stores these bootstrap users in the database with BCrypt
+password hashes. Updating the environment values updates the bootstrap users on
+the next application start.
 
 Compose enables demo seeding by default. It registers healthy, slow, failing, GitHub, and JSONPlaceholder services. The scheduler starts checking them after 15 seconds.
 
@@ -155,6 +158,9 @@ curl -X POST http://localhost:8080/api/services \
   -d '{
     "name": "Payment Service",
     "url": "https://example.com/health",
+    "ownerName": "Finance Ops",
+    "teamName": "Platform",
+    "tags": ["payments", "critical"],
     "method": "GET",
     "expectedStatusMin": 200,
     "expectedStatusMax": 299,
@@ -182,7 +188,7 @@ Useful endpoints:
 | --- | --- | --- |
 | `POST` | `/api/services` | Register a service |
 | `GET` | `/api/auth/me` | Return the authenticated user and role |
-| `GET` | `/api/services?page=0&size=20` | List services with current state |
+| `GET` | `/api/services?page=0&size=20&query=payments&active=true&sort=team&direction=asc` | List, search, filter, and sort services with current state |
 | `PUT` | `/api/services/{id}` | Update monitoring configuration |
 | `PATCH` | `/api/services/{id}/active` | Pause or resume scheduled checks |
 | `DELETE` | `/api/services/{id}` | Delete a service and its history |
@@ -194,6 +200,7 @@ Useful endpoints:
 | `GET` | `/api/notification-settings` | Get masked webhook configuration |
 | `PUT` | `/api/notification-settings` | Configure webhook delivery and cooldown |
 | `GET` | `/api/notification-settings/deliveries` | Review recent delivery attempts |
+| `GET` | `/api/audit-logs?page=0&size=20` | Review admin audit events |
 | `GET` | `/api/dashboard/summary` | Get platform summary metrics |
 
 ## Data Model
@@ -201,7 +208,8 @@ Useful endpoints:
 - `services`: endpoint configuration and failure policy
 - `health_checks`: immutable check result history
 - `incidents`: active and resolved outage records
-- `monitoring_leases`: short-lived scheduler leases that prevent duplicate checks across replicas
+- `app_users`: BCrypt-hashed admin and viewer accounts
+- `audit_logs`: admin mutation history for service, incident, and notification changes
 
 Indexes support recent health-check lookups, incident filtering, and lease
 expiry scans. A partial unique index prevents duplicate active incidents for the

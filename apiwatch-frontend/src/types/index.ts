@@ -4,6 +4,14 @@ export type RequestAuthType = 'NONE' | 'BEARER' | 'API_KEY'
 export type NotificationEventType = 'INCIDENT_OPENED' | 'INCIDENT_RESOLVED'
 export type NotificationDeliveryStatus = 'SENT' | 'FAILED' | 'SKIPPED_COOLDOWN'
 export type UserRole = 'ADMIN' | 'VIEWER'
+export type AuditAction =
+  | 'SERVICE_CREATED'
+  | 'SERVICE_UPDATED'
+  | 'SERVICE_DELETED'
+  | 'SERVICE_PAUSED'
+  | 'SERVICE_RESUMED'
+  | 'INCIDENT_RESOLVED'
+  | 'NOTIFICATION_SETTINGS_UPDATED'
 export type FailureType =
   | 'HTTP_STATUS'
   | 'RESPONSE_VALIDATION'
@@ -26,6 +34,9 @@ export interface MonitoredService {
   id: number
   name: string
   url: string
+  ownerName: string | null
+  teamName: string | null
+  tags: string[]
   method: 'GET'
   expectedStatusCode: number
   expectedStatusMin: number
@@ -106,6 +117,9 @@ export interface ServiceMetrics {
 export interface ServiceInput {
   name: string
   url: string
+  ownerName: string
+  teamName: string
+  tags: string[]
   method: 'GET'
   expectedStatusMin: number
   expectedStatusMax: number
@@ -150,4 +164,15 @@ export interface NotificationDelivery {
 export interface AuthUser {
   username: string
   role: UserRole
+}
+
+export interface AuditLog {
+  id: number
+  actorUsername: string
+  action: AuditAction
+  targetType: string
+  targetId: number | null
+  targetName: string | null
+  details: string | null
+  createdAt: string
 }

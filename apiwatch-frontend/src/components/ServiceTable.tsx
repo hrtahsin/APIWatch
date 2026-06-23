@@ -35,14 +35,27 @@ export function ServiceTable({
           </tr>
         </thead>
         <tbody>
-          {services.map((service) => (
+          {services.map((service) => {
+            const ownership = [service.ownerName, service.teamName].filter(Boolean).join(' / ')
+
+            return (
             <tr key={service.id}>
               <td>
                 <div className="service-name-cell">
                   <span className="service-avatar">{service.name.slice(0, 2).toUpperCase()}</span>
                   <div>
                     <Link to={`/services/${service.id}`}>{service.name}</Link>
-                    <span>{service.active ? 'Monitoring enabled' : 'Monitoring paused'}</span>
+                    <span className="service-state">
+                      {service.active ? 'Monitoring enabled' : 'Monitoring paused'}
+                    </span>
+                    {ownership && <span className="service-owner">{ownership}</span>}
+                    {service.tags.length > 0 && (
+                      <div className="tag-list">
+                        {service.tags.map((tag) => (
+                          <span key={tag}>{tag}</span>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
               </td>
@@ -82,7 +95,8 @@ export function ServiceTable({
                 </div>
               </td>
             </tr>
-          ))}
+            )
+          })}
         </tbody>
       </table>
     </div>

@@ -667,10 +667,32 @@ button {
   font-weight: 800;
 }
 
-.service-name-cell span:last-child,
+.service-state,
+.service-owner,
 .muted-cell {
   color: var(--muted);
   font-size: 13px;
+}
+
+.service-owner {
+  display: block;
+  margin-top: 3px;
+}
+
+.tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 7px;
+}
+
+.tag-list span {
+  border-radius: 999px;
+  padding: 3px 7px;
+  color: #475467;
+  background: #eef2f7;
+  font-size: 11px;
+  font-weight: 800;
 }
 
 .metric-cell {
@@ -887,6 +909,53 @@ button {
   font-weight: 700;
 }
 
+.table-count {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.audit-action {
+  display: inline-flex;
+  border-radius: 999px;
+  padding: 6px 10px;
+  color: #344054;
+  background: #eef2f7;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.data-table td > small {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.toolbar-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.toolbar-controls select {
+  min-height: 42px;
+  border: 1px solid var(--border);
+  border-radius: 13px;
+  padding: 0 34px 0 12px;
+  color: #344054;
+  background: #fff;
+}
+
+.toolbar-controls span {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
 .search-box {
   display: flex;
   align-items: center;
@@ -1100,6 +1169,14 @@ button {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.metadata-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.metadata-tags {
+  grid-column: 1 / -1;
+}
+
 .credential-secret {
   grid-column: span 2;
 }
@@ -1252,5 +1329,13 @@ button {
 
   .search-box {
     width: 100%;
+  }
+
+  .toolbar-controls {
+    justify-content: flex-start;
+  }
+
+  .toolbar-controls select {
+    flex: 1 1 160px;
   }
 }

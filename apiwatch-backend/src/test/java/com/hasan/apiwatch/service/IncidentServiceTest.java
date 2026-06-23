@@ -33,6 +33,7 @@ class IncidentServiceTest {
     private IncidentRepository incidentRepository;
     private HealthCheckRepository healthCheckRepository;
     private ApplicationEventPublisher eventPublisher;
+    private AuditLogService auditLogService;
     private IncidentService incidentService;
     private MonitoredService service;
 
@@ -41,12 +42,14 @@ class IncidentServiceTest {
         incidentRepository = mock(IncidentRepository.class);
         healthCheckRepository = mock(HealthCheckRepository.class);
         eventPublisher = mock(ApplicationEventPublisher.class);
+        auditLogService = mock(AuditLogService.class);
         when(incidentRepository.save(any(Incident.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
         incidentService = new IncidentService(
                 incidentRepository,
                 healthCheckRepository,
-                eventPublisher
+                eventPublisher,
+                auditLogService
         );
 
         service = new MonitoredService();

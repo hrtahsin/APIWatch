@@ -6,6 +6,7 @@ import {
   Menu,
   Plus,
   RefreshCw,
+  ScrollText,
   Server,
   Settings,
   X,
@@ -13,6 +14,7 @@ import {
 import { useState } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth'
+import { requestAppRefresh } from '../hooks/useAutoRefresh'
 
 const navigation = [
   { to: '/', label: 'Overview', icon: Gauge },
@@ -25,6 +27,7 @@ const titles: Record<string, { title: string; eyebrow: string }> = {
   '/services': { title: 'Monitored services', eyebrow: 'Service registry' },
   '/incidents': { title: 'Incident timeline', eyebrow: 'Reliability history' },
   '/settings': { title: 'Notification settings', eyebrow: 'Integrations' },
+  '/audit-logs': { title: 'Audit logs', eyebrow: 'Security' },
   '/services/new': { title: 'Add a service', eyebrow: 'Service registry' },
 }
 
@@ -87,6 +90,14 @@ export function AppLayout() {
                 <Settings size={18} />
                 <span>Settings</span>
               </NavLink>
+              <NavLink
+                to="/audit-logs"
+                onClick={() => setMobileOpen(false)}
+                className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+              >
+                <ScrollText size={18} />
+                <span>Audit logs</span>
+              </NavLink>
             </>
           )}
         </nav>
@@ -118,7 +129,7 @@ export function AppLayout() {
           </div>
           <div className="topbar-actions">
             <span className="refresh-meta">Auto-refreshes every 60s</span>
-            <button className="icon-button" onClick={() => window.location.reload()} aria-label="Refresh data">
+            <button className="icon-button" onClick={requestAppRefresh} aria-label="Refresh data">
               <RefreshCw size={17} />
             </button>
             {canManage && (

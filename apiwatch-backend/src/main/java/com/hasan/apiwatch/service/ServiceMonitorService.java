@@ -6,6 +6,7 @@ import com.hasan.apiwatch.dto.ServiceResponse;
 import com.hasan.apiwatch.dto.UpdateServiceRequest;
 import com.hasan.apiwatch.entity.HealthCheck;
 import com.hasan.apiwatch.entity.MonitoredService;
+import com.hasan.apiwatch.enums.AuditAction;
 import com.hasan.apiwatch.enums.HealthStatus;
 import com.hasan.apiwatch.enums.HttpMethodType;
 import com.hasan.apiwatch.enums.IncidentStatus;
@@ -15,12 +16,17 @@ import com.hasan.apiwatch.repository.HealthCheckRepository;
 import com.hasan.apiwatch.repository.IncidentRepository;
 import com.hasan.apiwatch.repository.MonitoredServiceRepository;
 import com.hasan.apiwatch.repository.NotificationDeliveryRepository;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import jakarta.persistence.criteria.Predicate;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
 
 @Service
 public class ServiceMonitorService {
@@ -31,6 +37,7 @@ public class ServiceMonitorService {
     private final NotificationDeliveryRepository notificationDeliveryRepository;
     private final ServiceCredentialService credentialService;
     private final UrlSafetyService urlSafetyService;
+    private final AuditLogService auditLogService;
 
     public ServiceMonitorService(
             MonitoredServiceRepository serviceRepository,
@@ -38,7 +45,8 @@ public class ServiceMonitorService {
             IncidentRepository incidentRepository,
             NotificationDeliveryRepository notificationDeliveryRepository,
             ServiceCredentialService credentialService,
-            UrlSafetyService urlSafetyService
+            UrlSafetyService urlSafetyService,
+            AuditLogService auditLogService
     ) {
         this.serviceRepository = serviceRepository;
         this.healthCheckRepository = healthCheckRepository;
@@ -46,6 +54,7 @@ public class ServiceMonitorService {
         this.notificationDeliveryRepository = notificationDeliveryRepository;
         this.credentialService = credentialService;
         this.urlSafetyService = urlSafetyService;
+        this.auditLogService = auditLogService;
     }
 
     @Transactional
@@ -66,6 +75,9 @@ public class ServiceMonitorService {
                 service,
                 name,
                 urlSafetyService.validateConfiguration(request.url()),
+                request.ownerName(),
+                request.teamName(),
+                request.tags(),
                 request.method() == null ? HttpMethodType.GET : request.method(),
                 expectedStatus,
                 request.timeoutMs() == null ? 2000 : request.timeoutMs(),
@@ -81,16 +93,39 @@ public class ServiceMonitorService {
                 request.authHeaderName(),
                 request.authValue()
         );
-        return toResponse(serviceRepository.save(service));
+        MonitoredService saved = serviceRepository.save(service);
+        auditLogService.record(
+                AuditAction.SERVICE_CREATED,
+                "SERVICE",
+                saved.getId(),
+                saved.getName(),
+                "Registered " + saved.getMethod() + " " + saved.getUrl()
+        );
+        return toResponse(saved);
     }
 
     @Transactional(readOnly = true)
     public PageResponse<ServiceResponse> findAll(int page, int size) {
-        var services = serviceRepository.findAll(PageRequest.of(
-                Math.max(page, 0),
-                Math.min(Math.max(size, 1), 100),
-                Sort.by(Sort.Direction.ASC, "name")
-        )).map(this::toResponse);
+        return findAll(page, size, null, null, "name", "asc");
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponse<ServiceResponse> findAll(
+            int page,
+            int size,
+            String query,
+            Boolean active,
+            String sort,
+            String direction
+    ) {
+        var services = serviceRepository.findAll(
+                serviceSpecification(query, active),
+                PageRequest.of(
+                        Math.max(page, 0),
+                        Math.min(Math.max(size, 1), 100),
+                        resolveSort(sort, direction)
+                )
+        ).map(this::toResponse);
         return PageResponse.from(services);
     }
 
@@ -120,6 +155,9 @@ public class ServiceMonitorService {
                 service,
                 name,
                 urlSafetyService.validateConfiguration(request.url()),
+                request.ownerName(),
+                request.teamName(),
+                request.tags(),
                 request.method(),
                 expectedStatus,
                 request.timeoutMs(),
@@ -136,7 +174,15 @@ public class ServiceMonitorService {
                 request.authValue(),
                 Boolean.TRUE.equals(request.clearAuthSecret())
         );
-        return toResponse(serviceRepository.save(service));
+        MonitoredService saved = serviceRepository.save(service);
+        auditLogService.record(
+                AuditAction.SERVICE_UPDATED,
+                "SERVICE",
+                saved.getId(),
+                saved.getName(),
+                "Updated service configuration"
+        );
+        return toResponse(saved);
     }
 
     @Transactional
@@ -146,13 +192,31 @@ public class ServiceMonitorService {
         healthCheckRepository.deleteByMonitoredServiceId(id);
         incidentRepository.deleteByMonitoredServiceId(id);
         serviceRepository.delete(service);
+        auditLogService.record(
+                AuditAction.SERVICE_DELETED,
+                "SERVICE",
+                id,
+                service.getName(),
+                "Deleted service and related history"
+        );
     }
 
     @Transactional
     public ServiceResponse setActive(Long id, boolean active) {
         MonitoredService service = getEntity(id);
+        boolean changed = service.isActive() != active;
         service.setActive(active);
-        return toResponse(serviceRepository.save(service));
+        MonitoredService saved = serviceRepository.save(service);
+        if (changed) {
+            auditLogService.record(
+                    active ? AuditAction.SERVICE_RESUMED : AuditAction.SERVICE_PAUSED,
+                    "SERVICE",
+                    saved.getId(),
+                    saved.getName(),
+                    active ? "Resumed scheduled monitoring" : "Paused scheduled monitoring"
+            );
+        }
+        return toResponse(saved);
     }
 
     @Transactional
@@ -175,6 +239,9 @@ public class ServiceMonitorService {
             MonitoredService service,
             String name,
             String url,
+            String ownerName,
+            String teamName,
+            List<String> tags,
             HttpMethodType method,
             ExpectedStatusRange expectedStatus,
             int timeoutMs,
@@ -185,6 +252,9 @@ public class ServiceMonitorService {
     ) {
         service.setName(name);
         service.setUrl(url);
+        service.setOwnerName(normalizeOptional(ownerName));
+        service.setTeamName(normalizeOptional(teamName));
+        service.setTags(normalizeTags(tags));
         service.setMethod(method);
         service.setExpectedStatusCode(expectedStatus.min());
         service.setExpectedStatusMin(expectedStatus.min());
@@ -225,6 +295,71 @@ public class ServiceMonitorService {
         return value == null || value.isBlank() ? null : value.trim();
     }
 
+    private Sort resolveSort(String sort, String direction) {
+        Sort.Direction sortDirection = "desc".equalsIgnoreCase(direction)
+                ? Sort.Direction.DESC
+                : Sort.Direction.ASC;
+        String property = switch ((sort == null ? "name" : sort.trim()).toLowerCase(Locale.ROOT)) {
+            case "owner", "ownername" -> "ownerName";
+            case "team", "teamname" -> "teamName";
+            case "created", "createdat" -> "createdAt";
+            case "updated", "updatedat" -> "updatedAt";
+            default -> "name";
+        };
+        return Sort.by(sortDirection, property).and(Sort.by(Sort.Direction.ASC, "id"));
+    }
+
+    private Specification<MonitoredService> serviceSpecification(String query, Boolean active) {
+        return (root, criteriaQuery, criteriaBuilder) -> {
+            List<Predicate> predicates = new ArrayList<>();
+            if (active != null) {
+                predicates.add(criteriaBuilder.equal(root.get("active"), active));
+            }
+
+            String normalizedQuery = normalizeOptional(query);
+            if (normalizedQuery != null) {
+                String pattern = "%" + normalizedQuery.toLowerCase(Locale.ROOT) + "%";
+                predicates.add(criteriaBuilder.or(
+                        criteriaBuilder.like(criteriaBuilder.lower(root.get("name")), pattern),
+                        criteriaBuilder.like(criteriaBuilder.lower(root.get("url")), pattern),
+                        criteriaBuilder.like(criteriaBuilder.lower(root.get("ownerName")), pattern),
+                        criteriaBuilder.like(criteriaBuilder.lower(root.get("teamName")), pattern),
+                        criteriaBuilder.like(criteriaBuilder.lower(root.get("tags")), pattern)
+                ));
+            }
+
+            return predicates.isEmpty()
+                    ? criteriaBuilder.conjunction()
+                    : criteriaBuilder.and(predicates.toArray(Predicate[]::new));
+        };
+    }
+
+    private String normalizeTags(List<String> tags) {
+        if (tags == null || tags.isEmpty()) {
+            return null;
+        }
+        List<String> normalized = tags.stream()
+                .map(this::normalizeOptional)
+                .filter(tag -> tag != null)
+                .distinct()
+                .toList();
+        if (normalized.isEmpty()) {
+            return null;
+        }
+        String joinedTags = String.join(",", normalized);
+        if (joinedTags.length() > 500) {
+            throw new BadRequestException("Combined tags cannot exceed 500 characters");
+        }
+        return joinedTags;
+    }
+
+    private List<String> tagsToList(String tags) {
+        if (tags == null || tags.isBlank()) {
+            return List.of();
+        }
+        return List.of(tags.split(","));
+    }
+
     private ServiceResponse toResponse(MonitoredService service) {
         HealthCheck latest = healthCheckRepository
                 .findTopByMonitoredServiceIdOrderByCheckedAtDesc(service.getId())
@@ -237,6 +372,9 @@ public class ServiceMonitorService {
                 service.getId(),
                 service.getName(),
                 service.getUrl(),
+                service.getOwnerName(),
+                service.getTeamName(),
+                tagsToList(service.getTags()),
                 service.getMethod(),
                 service.getExpectedStatusCode(),
                 service.getExpectedStatusMin(),

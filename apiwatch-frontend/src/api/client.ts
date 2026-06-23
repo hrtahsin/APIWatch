@@ -1,5 +1,6 @@
 import axios from 'axios'
 import type {
+  AuditLog,
   AuthUser,
   DashboardSummary,
   HealthCheck,
@@ -58,6 +59,15 @@ export function getApiErrorMessage(error: unknown, fallback: string): string {
 const demoMode = import.meta.env.VITE_DEMO_MODE === 'true'
 const now = Date.now()
 
+export type ServiceListSort = 'name' | 'owner' | 'team' | 'created' | 'updated'
+
+export interface ServiceListOptions {
+  query?: string
+  active?: boolean
+  sort?: ServiceListSort
+  direction?: 'asc' | 'desc'
+}
+
 let demoNotificationSettings: NotificationSettings = {
   enabled: false,
   webhookConfigured: false,
@@ -67,6 +77,29 @@ let demoNotificationSettings: NotificationSettings = {
 }
 
 const demoNotificationDeliveries: NotificationDelivery[] = []
+
+const demoAuditLogs: AuditLog[] = [
+  {
+    id: 1,
+    actorUsername: 'demo-admin',
+    action: 'SERVICE_CREATED',
+    targetType: 'SERVICE',
+    targetId: 1,
+    targetName: 'Payments API',
+    details: 'Registered GET https://api.example.com/payments/health',
+    createdAt: new Date(now - 2 * 60 * 60_000).toISOString(),
+  },
+  {
+    id: 2,
+    actorUsername: 'demo-admin',
+    action: 'SERVICE_PAUSED',
+    targetType: 'SERVICE',
+    targetId: 3,
+    targetName: 'Orders API',
+    details: 'Paused scheduled monitoring',
+    createdAt: new Date(now - 45 * 60_000).toISOString(),
+  },
+]
 
 export function setApiCredentials(username: string, password: string) {
   window.sessionStorage.setItem(authStorageKey, window.btoa(`${username}:${password}`))
@@ -99,6 +132,9 @@ let demoServices: MonitoredService[] = [
     id: 1,
     name: 'Payments API',
     url: 'https://api.example.com/payments/health',
+    ownerName: 'Finance Ops',
+    teamName: 'Platform',
+    tags: ['payments', 'critical'],
     method: 'GET',
     expectedStatusCode: 200,
     expectedStatusMin: 200,
@@ -127,6 +163,9 @@ let demoServices: MonitoredService[] = [
     id: 2,
     name: 'Identity Service',
     url: 'https://api.example.com/auth/health',
+    ownerName: 'Security',
+    teamName: 'Identity',
+    tags: ['auth', 'internal'],
     method: 'GET',
     expectedStatusCode: 200,
     expectedStatusMin: 200,
@@ -155,6 +194,9 @@ let demoServices: MonitoredService[] = [
     id: 3,
     name: 'Orders API',
     url: 'https://api.example.com/orders/health',
+    ownerName: 'Commerce Ops',
+    teamName: 'Orders',
+    tags: ['orders', 'customer-facing'],
     method: 'GET',
     expectedStatusCode: 200,
     expectedStatusMin: 200,
@@ -183,6 +225,9 @@ let demoServices: MonitoredService[] = [
     id: 4,
     name: 'Inventory API',
     url: 'https://api.example.com/inventory/health',
+    ownerName: 'Supply Chain',
+    teamName: 'Inventory',
+    tags: ['inventory'],
     method: 'GET',
     expectedStatusCode: 200,
     expectedStatusMin: 200,
@@ -279,14 +324,71 @@ function paginate<T>(items: T[], page: number, size: number): PageResponse<T> {
   }
 }
 
+function queryMatchesService(service: MonitoredService, query?: string): boolean {
+  const normalized = query?.trim().toLowerCase()
+  if (!normalized) return true
+  return [
+    service.name,
+    service.url,
+    service.currentStatus,
+    service.ownerName ?? '',
+    service.teamName ?? '',
+    ...service.tags,
+  ].some((value) => value.toLowerCase().includes(normalized))
+}
+
+function sortDemoServices(
+  services: MonitoredService[],
+  sort: ServiceListSort = 'name',
+  direction: 'asc' | 'desc' = 'asc',
+): MonitoredService[] {
+  const multiplier = direction === 'desc' ? -1 : 1
+  const valueFor = (service: MonitoredService) => {
+    switch (sort) {
+      case 'owner':
+        return service.ownerName ?? ''
+      case 'team':
+        return service.teamName ?? ''
+      case 'created':
+        return service.createdAt
+      case 'updated':
+        return service.updatedAt
+      default:
+        return service.name
+    }
+  }
+  return [...services].sort((left, right) =>
+    valueFor(left).localeCompare(valueFor(right)) * multiplier,
+  )
+}
+
 export async function getServicesPage(
   page = 0,
   size = 20,
+  options: ServiceListOptions = {},
 ): Promise<PageResponse<MonitoredService>> {
-  if (demoMode) return paginate(demoServices, page, size)
+  if (demoMode) {
+    const filtered = demoServices.filter(
+      (service) =>
+        queryMatchesService(service, options.query) &&
+        (options.active === undefined || service.active === options.active),
+    )
+    return paginate(
+      sortDemoServices(filtered, options.sort, options.direction),
+      page,
+      size,
+    )
+  }
   return (
     await http.get<PageResponse<MonitoredService>>('/services', {
-      params: { page, size },
+      params: {
+        page,
+        size,
+        query: options.query || undefined,
+        active: options.active,
+        sort: options.sort,
+        direction: options.direction,
+      },
     })
   ).data
 }
@@ -323,6 +425,18 @@ export async function getNotificationDeliveries(): Promise<NotificationDelivery[
   if (demoMode) return demoNotificationDeliveries
   return (
     await http.get<NotificationDelivery[]>('/notification-settings/deliveries')
+  ).data
+}
+
+export async function getAuditLogsPage(
+  page = 0,
+  size = 20,
+): Promise<PageResponse<AuditLog>> {
+  if (demoMode) return paginate(demoAuditLogs, page, size)
+  return (
+    await http.get<PageResponse<AuditLog>>('/audit-logs', {
+      params: { page, size },
+    })
   ).data
 }
 

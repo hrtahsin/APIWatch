@@ -7,6 +7,9 @@ import type { ServiceInput } from '../types'
 const defaultForm: ServiceInput = {
   name: '',
   url: '',
+  ownerName: '',
+  teamName: '',
+  tags: [],
   method: 'GET',
   expectedStatusMin: 200,
   expectedStatusMax: 299,
@@ -62,6 +65,9 @@ export function ServiceFormPage() {
         setForm({
           name: service.name,
           url: service.url,
+          ownerName: service.ownerName ?? '',
+          teamName: service.teamName ?? '',
+          tags: service.tags,
           method: service.method,
           expectedStatusMin: service.expectedStatusMin,
           expectedStatusMax: service.expectedStatusMax,
@@ -118,6 +124,16 @@ export function ServiceFormPage() {
     setForm((current) => ({ ...current, [key]: value }))
   }
 
+  function updateTags(value: string) {
+    update(
+      'tags',
+      value
+        .split(',')
+        .map((tag) => tag.trim())
+        .filter(Boolean),
+    )
+  }
+
   if (loading) return <div className="panel loading-panel">Loading service configuration...</div>
 
   return (
@@ -150,6 +166,43 @@ export function ServiceFormPage() {
             type="url"
           />
         </label>
+
+        <div className="form-section">
+          <div>
+            <span className="eyebrow">Ownership</span>
+            <h3>Discovery metadata</h3>
+            <p>Use these fields to search, sort, and route monitored services.</p>
+          </div>
+          <div className="form-grid metadata-grid">
+            <label>
+              <span>Owner</span>
+              <input
+                value={form.ownerName}
+                onChange={(event) => update('ownerName', event.target.value)}
+                placeholder="Finance Ops"
+                maxLength={120}
+              />
+            </label>
+            <label>
+              <span>Team</span>
+              <input
+                value={form.teamName}
+                onChange={(event) => update('teamName', event.target.value)}
+                placeholder="Platform"
+                maxLength={120}
+              />
+            </label>
+            <label className="metadata-tags">
+              <span>Tags</span>
+              <input
+                value={form.tags.join(', ')}
+                onChange={(event) => updateTags(event.target.value)}
+                placeholder="payments, critical"
+              />
+              <small>Comma-separated, up to 40 characters per tag.</small>
+            </label>
+          </div>
+        </div>
 
         <div className="form-grid">
           <label>
