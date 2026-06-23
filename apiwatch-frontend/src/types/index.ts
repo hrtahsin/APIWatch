@@ -2,7 +2,13 @@ export type HealthStatus = 'UP' | 'DOWN' | 'SLOW' | 'RATE_LIMITED' | 'UNKNOWN'
 export type IncidentStatus = 'ACTIVE' | 'RESOLVED'
 export type RequestAuthType = 'NONE' | 'BEARER' | 'API_KEY'
 export type NotificationEventType = 'INCIDENT_OPENED' | 'INCIDENT_RESOLVED'
-export type NotificationDeliveryStatus = 'SENT' | 'FAILED' | 'SKIPPED_COOLDOWN'
+export type NotificationProvider = 'WEBHOOK' | 'SLACK' | 'DISCORD' | 'EMAIL' | 'PAGERDUTY' | 'OPSGENIE'
+export type NotificationDeliveryStatus =
+  | 'PENDING'
+  | 'SENT'
+  | 'FAILED'
+  | 'SKIPPED_COOLDOWN'
+  | 'SKIPPED_RESOLVED'
 export type UserRole = 'ADMIN' | 'VIEWER'
 export type AuditAction =
   | 'SERVICE_CREATED'
@@ -45,6 +51,9 @@ export interface MonitoredService {
   checkIntervalSeconds: number
   responseBodyContains: string | null
   failureThreshold: number
+  notifyOnIncidentOpen: boolean
+  notifyOnIncidentResolve: boolean
+  notificationEscalationMinutes: number
   active: boolean
   currentStatus: HealthStatus
   lastCheckedAt: string | null
@@ -127,6 +136,9 @@ export interface ServiceInput {
   checkIntervalSeconds: number
   responseBodyContains: string
   failureThreshold: number
+  notifyOnIncidentOpen: boolean
+  notifyOnIncidentResolve: boolean
+  notificationEscalationMinutes: number
   active: boolean
   customHeaders: Record<string, string> | null
   authType: RequestAuthType
@@ -137,27 +149,37 @@ export interface ServiceInput {
 
 export interface NotificationSettings {
   enabled: boolean
+  provider: NotificationProvider
+  destinationConfigured: boolean
+  destinationDisplay: string | null
   webhookConfigured: boolean
   webhookDisplay: string | null
   cooldownSeconds: number
+  escalationMinutes: number
   updatedAt: string | null
 }
 
 export interface NotificationSettingsInput {
   enabled: boolean
-  webhookUrl: string
-  clearWebhook: boolean
+  provider: NotificationProvider
+  destination: string
+  clearDestination: boolean
   cooldownSeconds: number
+  escalationMinutes: number
 }
 
 export interface NotificationDelivery {
   id: number
   incidentId: number
   serviceId: number
+  provider: NotificationProvider
+  destinationDisplay: string | null
   eventType: NotificationEventType
   status: NotificationDeliveryStatus
   httpStatusCode: number | null
   errorMessage: string | null
+  attemptCount: number
+  nextAttemptAt: string | null
   attemptedAt: string
 }
 

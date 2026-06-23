@@ -143,6 +143,18 @@ export function ServiceDetailPage() {
             <span>{service.timeoutMs} ms timeout</span>
             <span>Every {service.checkIntervalSeconds}s</span>
             <span>Threshold {service.failureThreshold}</span>
+            <span>
+              Notifications{' '}
+              {[
+                service.notifyOnIncidentOpen ? 'open' : null,
+                service.notifyOnIncidentResolve ? 'resolve' : null,
+              ]
+                .filter(Boolean)
+                .join(' + ') || 'muted'}
+            </span>
+            {service.notificationEscalationMinutes > 0 && (
+              <span>Escalate after {service.notificationEscalationMinutes}m</span>
+            )}
             {service.responseBodyContains && <span>Body validation enabled</span>}
             {service.tags.map((tag) => (
               <span key={tag}>#{tag}</span>
