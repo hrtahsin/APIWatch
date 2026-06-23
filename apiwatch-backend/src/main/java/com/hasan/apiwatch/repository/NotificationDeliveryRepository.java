@@ -21,6 +21,11 @@ public interface NotificationDeliveryRepository
 
     List<NotificationDelivery> findTop50ByOrderByAttemptedAtDesc();
 
+    List<NotificationDelivery> findTop25ByStatusAndNextAttemptAtLessThanEqualOrderByNextAttemptAtAsc(
+            NotificationDeliveryStatus status,
+            Instant nextAttemptAt
+    );
+
     long deleteByAttemptedAtBefore(Instant cutoff);
 
     long deleteByServiceId(Long serviceId);

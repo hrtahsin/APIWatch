@@ -63,6 +63,15 @@ public class MonitoredService {
     @Column(name = "failure_threshold", nullable = false)
     private int failureThreshold = 3;
 
+    @Column(name = "notify_on_incident_open", nullable = false)
+    private boolean notifyOnIncidentOpen = true;
+
+    @Column(name = "notify_on_incident_resolve", nullable = false)
+    private boolean notifyOnIncidentResolve = true;
+
+    @Column(name = "notification_escalation_minutes", nullable = false)
+    private int notificationEscalationMinutes;
+
     @Column(nullable = false)
     private boolean active = true;
 
@@ -206,6 +215,30 @@ public class MonitoredService {
 
     public void setFailureThreshold(int failureThreshold) {
         this.failureThreshold = failureThreshold;
+    }
+
+    public boolean isNotifyOnIncidentOpen() {
+        return notifyOnIncidentOpen;
+    }
+
+    public void setNotifyOnIncidentOpen(boolean notifyOnIncidentOpen) {
+        this.notifyOnIncidentOpen = notifyOnIncidentOpen;
+    }
+
+    public boolean isNotifyOnIncidentResolve() {
+        return notifyOnIncidentResolve;
+    }
+
+    public void setNotifyOnIncidentResolve(boolean notifyOnIncidentResolve) {
+        this.notifyOnIncidentResolve = notifyOnIncidentResolve;
+    }
+
+    public int getNotificationEscalationMinutes() {
+        return notificationEscalationMinutes;
+    }
+
+    public void setNotificationEscalationMinutes(int notificationEscalationMinutes) {
+        this.notificationEscalationMinutes = notificationEscalationMinutes;
     }
 
     public boolean isActive() {

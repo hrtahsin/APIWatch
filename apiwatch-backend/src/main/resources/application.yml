@@ -34,6 +34,12 @@ apiwatch:
     incident-days: ${APIWATCH_RETENTION_INCIDENT_DAYS:365}
     notification-days: ${APIWATCH_RETENTION_NOTIFICATION_DAYS:90}
     cron: ${APIWATCH_RETENTION_CRON:0 30 2 * * *}
+  notifications:
+    initial-delay-ms: ${APIWATCH_NOTIFICATIONS_INITIAL_DELAY_MS:5000}
+    delivery-interval-ms: ${APIWATCH_NOTIFICATIONS_DELIVERY_INTERVAL_MS:5000}
+    max-attempts: ${APIWATCH_NOTIFICATIONS_MAX_ATTEMPTS:3}
+    retry-delay-seconds: ${APIWATCH_NOTIFICATIONS_RETRY_DELAY_SECONDS:60}
+    email-from: ${APIWATCH_NOTIFICATIONS_EMAIL_FROM:apiwatch@localhost}
   frontend-origin: ${APIWATCH_FRONTEND_ORIGIN:http://localhost:5173}
   secrets:
     encryption-key: ${APIWATCH_ENCRYPTION_KEY:YXBpd2F0Y2gtZGV2LWVuY3J5cHRpb24ta2V5LTMyYiE=}
