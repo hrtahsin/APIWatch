@@ -909,6 +909,29 @@ button {
   font-weight: 700;
 }
 
+.table-count {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.audit-action {
+  display: inline-flex;
+  border-radius: 999px;
+  padding: 6px 10px;
+  color: #344054;
+  background: #eef2f7;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.data-table td > small {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
 .toolbar-controls {
   display: flex;
   align-items: center;

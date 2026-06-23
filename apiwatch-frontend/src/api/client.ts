@@ -1,5 +1,6 @@
 import axios from 'axios'
 import type {
+  AuditLog,
   AuthUser,
   DashboardSummary,
   HealthCheck,
@@ -76,6 +77,29 @@ let demoNotificationSettings: NotificationSettings = {
 }
 
 const demoNotificationDeliveries: NotificationDelivery[] = []
+
+const demoAuditLogs: AuditLog[] = [
+  {
+    id: 1,
+    actorUsername: 'demo-admin',
+    action: 'SERVICE_CREATED',
+    targetType: 'SERVICE',
+    targetId: 1,
+    targetName: 'Payments API',
+    details: 'Registered GET https://api.example.com/payments/health',
+    createdAt: new Date(now - 2 * 60 * 60_000).toISOString(),
+  },
+  {
+    id: 2,
+    actorUsername: 'demo-admin',
+    action: 'SERVICE_PAUSED',
+    targetType: 'SERVICE',
+    targetId: 3,
+    targetName: 'Orders API',
+    details: 'Paused scheduled monitoring',
+    createdAt: new Date(now - 45 * 60_000).toISOString(),
+  },
+]
 
 export function setApiCredentials(username: string, password: string) {
   window.sessionStorage.setItem(authStorageKey, window.btoa(`${username}:${password}`))
@@ -401,6 +425,18 @@ export async function getNotificationDeliveries(): Promise<NotificationDelivery[
   if (demoMode) return demoNotificationDeliveries
   return (
     await http.get<NotificationDelivery[]>('/notification-settings/deliveries')
+  ).data
+}
+
+export async function getAuditLogsPage(
+  page = 0,
+  size = 20,
+): Promise<PageResponse<AuditLog>> {
+  if (demoMode) return paginate(demoAuditLogs, page, size)
+  return (
+    await http.get<PageResponse<AuditLog>>('/audit-logs', {
+      params: { page, size },
+    })
   ).data
 }
 

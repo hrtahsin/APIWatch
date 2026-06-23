@@ -3,6 +3,7 @@ package com.hasan.apiwatch.service;
 import com.hasan.apiwatch.dto.NotificationSettingsResponse;
 import com.hasan.apiwatch.dto.UpdateNotificationSettingsRequest;
 import com.hasan.apiwatch.entity.NotificationSettings;
+import com.hasan.apiwatch.enums.AuditAction;
 import com.hasan.apiwatch.exception.BadRequestException;
 import com.hasan.apiwatch.repository.NotificationSettingsRepository;
 import org.springframework.stereotype.Service;
@@ -18,15 +19,18 @@ public class NotificationSettingsService {
     private final NotificationSettingsRepository repository;
     private final SecretEncryptionService encryptionService;
     private final UrlSafetyService urlSafetyService;
+    private final AuditLogService auditLogService;
 
     public NotificationSettingsService(
             NotificationSettingsRepository repository,
             SecretEncryptionService encryptionService,
-            UrlSafetyService urlSafetyService
+            UrlSafetyService urlSafetyService,
+            AuditLogService auditLogService
     ) {
         this.repository = repository;
         this.encryptionService = encryptionService;
         this.urlSafetyService = urlSafetyService;
+        this.auditLogService = auditLogService;
     }
 
     @Transactional
@@ -49,7 +53,20 @@ public class NotificationSettingsService {
         }
         settings.setEnabled(request.enabled());
         settings.setCooldownSeconds(request.cooldownSeconds());
-        return toResponse(repository.save(settings));
+        NotificationSettings saved = repository.save(settings);
+        auditLogService.record(
+                AuditAction.NOTIFICATION_SETTINGS_UPDATED,
+                "NOTIFICATION_SETTINGS",
+                saved.getId(),
+                "Notification settings",
+                "Updated notification settings: enabled=%s, webhookConfigured=%s, cooldownSeconds=%d"
+                        .formatted(
+                                saved.isEnabled(),
+                                saved.getWebhookUrlEncrypted() != null,
+                                saved.getCooldownSeconds()
+                        )
+        );
+        return toResponse(saved);
     }
 
     @Transactional(readOnly = true)

@@ -5,6 +5,7 @@ import com.hasan.apiwatch.dto.PageResponse;
 import com.hasan.apiwatch.entity.HealthCheck;
 import com.hasan.apiwatch.entity.Incident;
 import com.hasan.apiwatch.entity.MonitoredService;
+import com.hasan.apiwatch.enums.AuditAction;
 import com.hasan.apiwatch.enums.HealthStatus;
 import com.hasan.apiwatch.enums.IncidentStatus;
 import com.hasan.apiwatch.event.IncidentNotificationEvent;
@@ -27,15 +28,18 @@ public class IncidentService {
     private final IncidentRepository incidentRepository;
     private final HealthCheckRepository healthCheckRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final AuditLogService auditLogService;
 
     public IncidentService(
             IncidentRepository incidentRepository,
             HealthCheckRepository healthCheckRepository,
-            ApplicationEventPublisher eventPublisher
+            ApplicationEventPublisher eventPublisher,
+            AuditLogService auditLogService
     ) {
         this.incidentRepository = incidentRepository;
         this.healthCheckRepository = healthCheckRepository;
         this.eventPublisher = eventPublisher;
+        this.auditLogService = auditLogService;
     }
 
     @Transactional
@@ -123,6 +127,13 @@ public class IncidentService {
         Incident incident = getEntity(id);
         if (incident.getStatus() == IncidentStatus.ACTIVE) {
             resolveEntity(incident);
+            auditLogService.record(
+                    AuditAction.INCIDENT_RESOLVED,
+                    "INCIDENT",
+                    incident.getId(),
+                    incident.getMonitoredService().getName(),
+                    "Manually resolved incident for service " + incident.getMonitoredService().getId()
+            );
         }
         return toResponse(incident);
     }

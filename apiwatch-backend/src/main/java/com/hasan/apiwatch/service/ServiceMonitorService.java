@@ -6,6 +6,7 @@ import com.hasan.apiwatch.dto.ServiceResponse;
 import com.hasan.apiwatch.dto.UpdateServiceRequest;
 import com.hasan.apiwatch.entity.HealthCheck;
 import com.hasan.apiwatch.entity.MonitoredService;
+import com.hasan.apiwatch.enums.AuditAction;
 import com.hasan.apiwatch.enums.HealthStatus;
 import com.hasan.apiwatch.enums.HttpMethodType;
 import com.hasan.apiwatch.enums.IncidentStatus;
@@ -36,6 +37,7 @@ public class ServiceMonitorService {
     private final NotificationDeliveryRepository notificationDeliveryRepository;
     private final ServiceCredentialService credentialService;
     private final UrlSafetyService urlSafetyService;
+    private final AuditLogService auditLogService;
 
     public ServiceMonitorService(
             MonitoredServiceRepository serviceRepository,
@@ -43,7 +45,8 @@ public class ServiceMonitorService {
             IncidentRepository incidentRepository,
             NotificationDeliveryRepository notificationDeliveryRepository,
             ServiceCredentialService credentialService,
-            UrlSafetyService urlSafetyService
+            UrlSafetyService urlSafetyService,
+            AuditLogService auditLogService
     ) {
         this.serviceRepository = serviceRepository;
         this.healthCheckRepository = healthCheckRepository;
@@ -51,6 +54,7 @@ public class ServiceMonitorService {
         this.notificationDeliveryRepository = notificationDeliveryRepository;
         this.credentialService = credentialService;
         this.urlSafetyService = urlSafetyService;
+        this.auditLogService = auditLogService;
     }
 
     @Transactional
@@ -89,7 +93,15 @@ public class ServiceMonitorService {
                 request.authHeaderName(),
                 request.authValue()
         );
-        return toResponse(serviceRepository.save(service));
+        MonitoredService saved = serviceRepository.save(service);
+        auditLogService.record(
+                AuditAction.SERVICE_CREATED,
+                "SERVICE",
+                saved.getId(),
+                saved.getName(),
+                "Registered " + saved.getMethod() + " " + saved.getUrl()
+        );
+        return toResponse(saved);
     }
 
     @Transactional(readOnly = true)
@@ -162,7 +174,15 @@ public class ServiceMonitorService {
                 request.authValue(),
                 Boolean.TRUE.equals(request.clearAuthSecret())
         );
-        return toResponse(serviceRepository.save(service));
+        MonitoredService saved = serviceRepository.save(service);
+        auditLogService.record(
+                AuditAction.SERVICE_UPDATED,
+                "SERVICE",
+                saved.getId(),
+                saved.getName(),
+                "Updated service configuration"
+        );
+        return toResponse(saved);
     }
 
     @Transactional
@@ -172,13 +192,31 @@ public class ServiceMonitorService {
         healthCheckRepository.deleteByMonitoredServiceId(id);
         incidentRepository.deleteByMonitoredServiceId(id);
         serviceRepository.delete(service);
+        auditLogService.record(
+                AuditAction.SERVICE_DELETED,
+                "SERVICE",
+                id,
+                service.getName(),
+                "Deleted service and related history"
+        );
     }
 
     @Transactional
     public ServiceResponse setActive(Long id, boolean active) {
         MonitoredService service = getEntity(id);
+        boolean changed = service.isActive() != active;
         service.setActive(active);
-        return toResponse(serviceRepository.save(service));
+        MonitoredService saved = serviceRepository.save(service);
+        if (changed) {
+            auditLogService.record(
+                    active ? AuditAction.SERVICE_RESUMED : AuditAction.SERVICE_PAUSED,
+                    "SERVICE",
+                    saved.getId(),
+                    saved.getName(),
+                    active ? "Resumed scheduled monitoring" : "Paused scheduled monitoring"
+            );
+        }
+        return toResponse(saved);
     }
 
     @Transactional
