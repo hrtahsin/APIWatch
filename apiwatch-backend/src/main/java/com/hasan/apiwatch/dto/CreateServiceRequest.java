@@ -9,6 +9,7 @@ import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import org.hibernate.validator.constraints.URL;
 
+import java.util.List;
 import java.util.Map;
 
 public record CreateServiceRequest(
@@ -17,6 +18,9 @@ public record CreateServiceRequest(
         @URL
         @Pattern(regexp = "(?i)^https?://.*$", message = "must use HTTP or HTTPS")
         String url,
+        @Size(max = 120) String ownerName,
+        @Size(max = 120) String teamName,
+        List<@Size(max = 40) String> tags,
         HttpMethodType method,
         @Min(100) @Max(599) Integer expectedStatusCode,
         @Min(100) @Max(599) Integer expectedStatusMin,

@@ -1,5 +1,5 @@
 import { AlertTriangle, Ban, Gauge, RadioTower, Server, Timer, TrendingUp } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   getDashboardSummary,
   getHealthChecks,
@@ -10,6 +10,7 @@ import { IncidentTable } from '../components/IncidentTable'
 import { LatencyChart } from '../components/LatencyChart'
 import { ServiceTable } from '../components/ServiceTable'
 import { SummaryCard } from '../components/SummaryCard'
+import { useAutoRefresh } from '../hooks/useAutoRefresh'
 import type { DashboardSummary, HealthCheck, Incident, MonitoredService } from '../types'
 
 export function DashboardPage() {
@@ -20,38 +21,33 @@ export function DashboardPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    let cancelled = false
-    async function load() {
-      try {
-        setLoading(true)
-        const [summaryResponse, servicesResponse, incidentsResponse] = await Promise.all([
-          getDashboardSummary(),
-          getServices(),
-          getIncidents('ACTIVE'),
-        ])
-        const firstService = servicesResponse[0]
-        const checksResponse = firstService ? await getHealthChecks(firstService.id, 20) : []
-        if (!cancelled) {
-          setSummary(summaryResponse)
-          setServices(servicesResponse)
-          setActiveIncidents(incidentsResponse)
-          setChecks(checksResponse)
-          setError(null)
-        }
-      } catch (loadError) {
-        if (!cancelled) {
-          setError(loadError instanceof Error ? loadError.message : 'Unable to load dashboard')
-        }
-      } finally {
-        if (!cancelled) setLoading(false)
-      }
-    }
-    load()
-    return () => {
-      cancelled = true
+  const load = useCallback(async (showLoading = false) => {
+    try {
+      if (showLoading) setLoading(true)
+      const [summaryResponse, servicesResponse, incidentsResponse] = await Promise.all([
+        getDashboardSummary(),
+        getServices(),
+        getIncidents('ACTIVE'),
+      ])
+      const firstService = servicesResponse[0]
+      const checksResponse = firstService ? await getHealthChecks(firstService.id, 20) : []
+      setSummary(summaryResponse)
+      setServices(servicesResponse)
+      setActiveIncidents(incidentsResponse)
+      setChecks(checksResponse)
+      setError(null)
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : 'Unable to load dashboard')
+    } finally {
+      if (showLoading) setLoading(false)
     }
   }, [])
+
+  useEffect(() => {
+    void load(true)
+  }, [load])
+
+  useAutoRefresh(() => load(false))
 
   const cards = useMemo(
     () =>

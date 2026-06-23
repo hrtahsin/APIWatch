@@ -1,5 +1,5 @@
 import { AlertTriangle, Clock3, Play, ShieldAlert, Trash2 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
   deleteService,
@@ -15,6 +15,7 @@ import { IncidentTable } from '../components/IncidentTable'
 import { LatencyChart } from '../components/LatencyChart'
 import { Pagination } from '../components/Pagination'
 import { StatusBadge } from '../components/StatusBadge'
+import { useAutoRefresh } from '../hooks/useAutoRefresh'
 import type {
   FailureType,
   HealthCheck,
@@ -54,11 +55,12 @@ export function ServiceDetailPage() {
   const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  async function load() {
+  const load = useCallback(async (showLoading = false, targetCheckPage = checkPage) => {
+    if (showLoading) setLoading(true)
     const [serviceResponse, checksResponse, incidentsResponse, metricsResponse] =
       await Promise.all([
         getService(serviceId),
-        getHealthChecksPage(serviceId, checkPage, checkPageSize),
+        getHealthChecksPage(serviceId, targetCheckPage, checkPageSize),
         getIncidents(undefined, serviceId),
         getServiceMetrics(serviceId),
       ])
@@ -68,25 +70,30 @@ export function ServiceDetailPage() {
     setCheckTotalPages(checksResponse.totalPages)
     setIncidents(incidentsResponse)
     setMetrics(metricsResponse)
-  }
+    if (showLoading) setLoading(false)
+  }, [checkPage, serviceId])
 
   useEffect(() => {
-    setLoading(true)
-    load()
+    load(true)
       .then(() => setError(null))
       .catch((loadError) => {
         setError(getApiErrorMessage(loadError, 'Unable to load service'))
+        setLoading(false)
       })
-      .finally(() => setLoading(false))
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [serviceId, checkPage])
+  }, [load])
+
+  useAutoRefresh(() =>
+    load(false).catch((loadError) => {
+      setError(getApiErrorMessage(loadError, 'Unable to load service'))
+    }),
+  )
 
   async function handleRunCheck() {
     try {
       setRunning(true)
       await runCheck(serviceId)
       setCheckPage(0)
-      await load()
+      await load(false, 0)
       setError(null)
     } catch (runError) {
       setError(getApiErrorMessage(runError, 'Health check failed'))
@@ -126,6 +133,8 @@ export function ServiceDetailPage() {
           <p>{service.url}</p>
           <div className="hero-meta">
             <StatusBadge status={service.currentStatus} />
+            {service.ownerName && <span>Owner {service.ownerName}</span>}
+            {service.teamName && <span>Team {service.teamName}</span>}
             <span>
               Expected {service.expectedStatusMin === service.expectedStatusMax
                 ? service.expectedStatusMin
@@ -135,6 +144,9 @@ export function ServiceDetailPage() {
             <span>Every {service.checkIntervalSeconds}s</span>
             <span>Threshold {service.failureThreshold}</span>
             {service.responseBodyContains && <span>Body validation enabled</span>}
+            {service.tags.map((tag) => (
+              <span key={tag}>#{tag}</span>
+            ))}
           </div>
         </div>
         {canManage && (
