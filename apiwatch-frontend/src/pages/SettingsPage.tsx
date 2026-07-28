@@ -1,9 +1,10 @@
-import { BellRing, Save, ShieldCheck } from 'lucide-react'
+import { BellRing, RotateCcw, Save, ShieldCheck } from 'lucide-react'
 import { FormEvent, useEffect, useState } from 'react'
 import {
   getApiErrorMessage,
   getNotificationDeliveries,
   getNotificationSettings,
+  retryNotificationDelivery,
   updateNotificationSettings,
 } from '../api/client'
 import type {
@@ -90,6 +91,7 @@ export function SettingsPage() {
   const [deliveries, setDeliveries] = useState<NotificationDelivery[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [retryingDeliveryId, setRetryingDeliveryId] = useState<number | null>(null)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -145,6 +147,21 @@ export function SettingsPage() {
       setError(getApiErrorMessage(saveError, 'Unable to save notification settings'))
     } finally {
       setSaving(false)
+    }
+  }
+
+  async function handleRetry(deliveryId: number) {
+    try {
+      setRetryingDeliveryId(deliveryId)
+      const retried = await retryNotificationDelivery(deliveryId)
+      setDeliveries((current) =>
+        current.map((delivery) => (delivery.id === deliveryId ? retried : delivery)),
+      )
+      setError(null)
+    } catch (retryError) {
+      setError(getApiErrorMessage(retryError, 'Unable to retry notification delivery'))
+    } finally {
+      setRetryingDeliveryId(null)
     }
   }
 
@@ -303,7 +320,9 @@ export function SettingsPage() {
                   <th>HTTP</th>
                   <th>Attempts</th>
                   <th>Next attempt</th>
+                  <th>Last attempt</th>
                   <th>Queued</th>
+                  <th>Action</th>
                 </tr>
               </thead>
               <tbody>
@@ -322,7 +341,25 @@ export function SettingsPage() {
                     <td className="muted-cell">
                       {delivery.nextAttemptAt ? formatDate(delivery.nextAttemptAt) : '—'}
                     </td>
+                    <td className="muted-cell">
+                      {delivery.lastAttemptAt ? formatDate(delivery.lastAttemptAt) : '—'}
+                    </td>
                     <td className="muted-cell">{formatDate(delivery.attemptedAt)}</td>
+                    <td>
+                      {delivery.status === 'FAILED' ? (
+                        <button
+                          className="button secondary small"
+                          disabled={retryingDeliveryId === delivery.id}
+                          onClick={() => handleRetry(delivery.id)}
+                          type="button"
+                        >
+                          <RotateCcw size={14} />
+                          {retryingDeliveryId === delivery.id ? 'Retrying...' : 'Retry'}
+                        </button>
+                      ) : (
+                        '—'
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>

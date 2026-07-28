@@ -80,7 +80,7 @@ let demoNotificationSettings: NotificationSettings = {
   updatedAt: null,
 }
 
-const demoNotificationDeliveries: NotificationDelivery[] = []
+let demoNotificationDeliveries: NotificationDelivery[] = []
 
 const demoAuditLogs: AuditLog[] = [
   {
@@ -466,6 +466,32 @@ export async function getNotificationDeliveries(): Promise<NotificationDelivery[
   if (demoMode) return demoNotificationDeliveries
   return (
     await http.get<NotificationDelivery[]>('/notification-settings/deliveries')
+  ).data
+}
+
+export async function retryNotificationDelivery(
+  id: number,
+): Promise<NotificationDelivery> {
+  if (demoMode) {
+    const delivery = demoNotificationDeliveries.find((item) => item.id === id)
+    if (!delivery) throw new Error('Notification delivery was not found.')
+    const retried: NotificationDelivery = {
+      ...delivery,
+      status: 'PENDING',
+      attemptCount: 0,
+      httpStatusCode: null,
+      errorMessage: null,
+      nextAttemptAt: new Date().toISOString(),
+    }
+    demoNotificationDeliveries = demoNotificationDeliveries.map((item) =>
+      item.id === id ? retried : item,
+    )
+    return retried
+  }
+  return (
+    await http.post<NotificationDelivery>(
+      `/notification-settings/deliveries/${id}/retry`,
+    )
   ).data
 }
 
