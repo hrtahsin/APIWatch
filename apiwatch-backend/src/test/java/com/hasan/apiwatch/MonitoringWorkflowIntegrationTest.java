@@ -166,6 +166,7 @@ class MonitoringWorkflowIntegrationTest {
         delivery.setServiceId(serviceId);
         delivery.setEventType(NotificationEventType.INCIDENT_OPENED);
         delivery.setStatus(NotificationDeliveryStatus.SENT);
+        delivery.setEventKey("test-delete:" + incident.getId());
         notificationDeliveryRepository.save(delivery);
 
         mockMvc.perform(delete("/api/services/{id}", serviceId)

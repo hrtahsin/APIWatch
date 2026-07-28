@@ -6,35 +6,46 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hasan.apiwatch.dto.NotificationDeliveryResponse;
 import com.hasan.apiwatch.entity.MonitoredService;
 import com.hasan.apiwatch.entity.NotificationDelivery;
+import com.hasan.apiwatch.enums.AuditAction;
 import com.hasan.apiwatch.enums.IncidentStatus;
 import com.hasan.apiwatch.enums.NotificationDeliveryStatus;
 import com.hasan.apiwatch.enums.NotificationEventType;
 import com.hasan.apiwatch.enums.NotificationProvider;
 import com.hasan.apiwatch.event.IncidentNotificationEvent;
+import com.hasan.apiwatch.exception.BadRequestException;
+import com.hasan.apiwatch.exception.ResourceNotFoundException;
 import com.hasan.apiwatch.repository.IncidentRepository;
 import com.hasan.apiwatch.repository.MonitoredServiceRepository;
 import com.hasan.apiwatch.repository.NotificationDeliveryRepository;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.reactive.function.client.WebClientRequestException;
 
 import java.net.URLEncoder;
 import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 
 @Service
@@ -49,12 +60,14 @@ public class WebhookNotificationService {
     private final WebClient webClient;
     private final NotificationSettingsService settingsService;
     private final NotificationDeliveryRepository deliveryRepository;
+    private final NotificationDeliveryClaimService claimService;
     private final MonitoredServiceRepository serviceRepository;
     private final IncidentRepository incidentRepository;
     private final SecretEncryptionService encryptionService;
     private final UrlSafetyService urlSafetyService;
     private final ObjectMapper objectMapper;
     private final ObjectProvider<JavaMailSender> mailSenderProvider;
+    private final AuditLogService auditLogService;
     private final int maxAttempts;
     private final int retryDelaySeconds;
     private final String emailFrom;
@@ -63,12 +76,14 @@ public class WebhookNotificationService {
             WebClient.Builder webClientBuilder,
             NotificationSettingsService settingsService,
             NotificationDeliveryRepository deliveryRepository,
+            NotificationDeliveryClaimService claimService,
             MonitoredServiceRepository serviceRepository,
             IncidentRepository incidentRepository,
             SecretEncryptionService encryptionService,
             UrlSafetyService urlSafetyService,
             ObjectMapper objectMapper,
             ObjectProvider<JavaMailSender> mailSenderProvider,
+            AuditLogService auditLogService,
             @Value("${apiwatch.notifications.max-attempts:3}") int maxAttempts,
             @Value("${apiwatch.notifications.retry-delay-seconds:60}") int retryDelaySeconds,
             @Value("${apiwatch.notifications.email-from:apiwatch@localhost}") String emailFrom
@@ -76,12 +91,14 @@ public class WebhookNotificationService {
         this.webClient = webClientBuilder.build();
         this.settingsService = settingsService;
         this.deliveryRepository = deliveryRepository;
+        this.claimService = claimService;
         this.serviceRepository = serviceRepository;
         this.incidentRepository = incidentRepository;
         this.encryptionService = encryptionService;
         this.urlSafetyService = urlSafetyService;
         this.objectMapper = objectMapper;
         this.mailSenderProvider = mailSenderProvider;
+        this.auditLogService = auditLogService;
         this.maxAttempts = Math.max(1, maxAttempts);
         this.retryDelaySeconds = Math.max(1, retryDelaySeconds);
         this.emailFrom = emailFrom;
@@ -110,13 +127,7 @@ public class WebhookNotificationService {
             fixedDelayString = "${apiwatch.notifications.delivery-interval-ms:5000}"
     )
     public void processDueDeliveries() {
-        List<NotificationDelivery> deliveries =
-                deliveryRepository
-                        .findTop25ByStatusAndNextAttemptAtLessThanEqualOrderByNextAttemptAtAsc(
-                                NotificationDeliveryStatus.PENDING,
-                                Instant.now()
-                        );
-        deliveries.forEach(this::deliverPending);
+        claimService.claimDue(25).forEach(this::deliverClaimed);
     }
 
     void enqueue(
@@ -124,6 +135,9 @@ public class WebhookNotificationService {
             MonitoredService service,
             NotificationSettingsService.NotificationTarget target
     ) {
+        if (deliveryRepository.existsByEventKey(eventKey(event, target.provider()))) {
+            return;
+        }
         if (isWithinCooldown(event, target.cooldownSeconds())) {
             saveDelivery(
                     event,
@@ -149,7 +163,7 @@ public class WebhookNotificationService {
     }
 
     void deliverPending(NotificationDelivery delivery) {
-        if (delivery.getStatus() != NotificationDeliveryStatus.PENDING) {
+        if (delivery.getStatus() != NotificationDeliveryStatus.PROCESSING) {
             return;
         }
 
@@ -157,18 +171,25 @@ public class WebhookNotificationService {
             delivery.setStatus(NotificationDeliveryStatus.SKIPPED_RESOLVED);
             delivery.setNextAttemptAt(null);
             delivery.setErrorMessage("Incident resolved before the escalation delay elapsed");
+            clearClaim(delivery);
             deliveryRepository.save(delivery);
             return;
         }
 
         int attemptCount = delivery.getAttemptCount() + 1;
         delivery.setAttemptCount(attemptCount);
+        delivery.setLastAttemptAt(Instant.now());
 
         DispatchResult result;
         try {
             result = dispatch(delivery);
         } catch (Exception exception) {
-            result = DispatchResult.failed(null, readableMessage(exception));
+            result = DispatchResult.failed(
+                    null,
+                    readableMessage(exception),
+                    isRetryableException(exception),
+                    null
+            );
         }
 
         delivery.setHttpStatusCode(result.httpStatusCode());
@@ -176,14 +197,52 @@ public class WebhookNotificationService {
         if (result.success()) {
             delivery.setStatus(NotificationDeliveryStatus.SENT);
             delivery.setNextAttemptAt(null);
-        } else if (attemptCount < maxAttempts) {
+        } else if (result.retryable() && attemptCount < maxAttempts) {
             delivery.setStatus(NotificationDeliveryStatus.PENDING);
-            delivery.setNextAttemptAt(Instant.now().plusSeconds((long) retryDelaySeconds * attemptCount));
+            delivery.setNextAttemptAt(Instant.now().plusSeconds(
+                    retryDelaySeconds(result.retryAfterSeconds(), attemptCount)
+            ));
         } else {
             delivery.setStatus(NotificationDeliveryStatus.FAILED);
             delivery.setNextAttemptAt(null);
         }
+        clearClaim(delivery);
         deliveryRepository.save(delivery);
+    }
+
+    @Transactional
+    public NotificationDeliveryResponse retryFailed(Long deliveryId) {
+        NotificationDelivery delivery = deliveryRepository.findById(deliveryId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Notification delivery " + deliveryId + " was not found"
+                ));
+        if (delivery.getStatus() != NotificationDeliveryStatus.FAILED) {
+            throw new BadRequestException("Only failed notification deliveries can be retried");
+        }
+        delivery.setStatus(NotificationDeliveryStatus.PENDING);
+        delivery.setAttemptCount(0);
+        delivery.setHttpStatusCode(null);
+        delivery.setErrorMessage(null);
+        delivery.setNextAttemptAt(Instant.now());
+        clearClaim(delivery);
+        NotificationDelivery saved = deliveryRepository.save(delivery);
+        auditLogService.record(
+                AuditAction.NOTIFICATION_DELIVERY_RETRIED,
+                "NOTIFICATION_DELIVERY",
+                saved.getId(),
+                saved.getEventType().name(),
+                "Queued failed notification delivery for manual retry"
+        );
+        return toResponse(saved);
+    }
+
+    private void deliverClaimed(Long deliveryId) {
+        deliveryRepository.findById(deliveryId)
+                .filter(delivery ->
+                        delivery.getStatus() == NotificationDeliveryStatus.PROCESSING
+                                && claimService.ownerId().equals(delivery.getClaimedBy())
+                )
+                .ifPresent(this::deliverPending);
     }
 
     private boolean shouldNotify(MonitoredService service, NotificationEventType eventType) {
@@ -241,16 +300,18 @@ public class WebhookNotificationService {
     private DispatchResult dispatch(NotificationDelivery delivery) {
         String destination = encryptionService.decrypt(delivery.getDestinationEncrypted());
         Map<String, Object> payload = readPayload(delivery.getPayloadJson());
+        Consumer<HttpHeaders> idempotencyHeader =
+                headers -> headers.set("Idempotency-Key", delivery.getEventKey());
         return switch (delivery.getProvider()) {
-            case WEBHOOK -> postJson(destination, payload, headers -> {
-            });
-            case SLACK -> postJson(destination, slackPayload(payload), headers -> {
-            });
-            case DISCORD -> postJson(destination, discordPayload(payload), headers -> {
-            });
+            case WEBHOOK -> postJson(destination, payload, idempotencyHeader);
+            case SLACK -> postJson(destination, slackPayload(payload), idempotencyHeader);
+            case DISCORD -> postJson(destination, discordPayload(payload), idempotencyHeader);
             case EMAIL -> sendEmail(destination, payload);
-            case PAGERDUTY -> postJson(PAGERDUTY_EVENTS_URL, pagerDutyPayload(destination, payload), headers -> {
-            });
+            case PAGERDUTY -> postJson(
+                    PAGERDUTY_EVENTS_URL,
+                    pagerDutyPayload(destination, payload),
+                    idempotencyHeader
+            );
             case OPSGENIE -> sendOpsgenie(destination, payload);
         };
     }
@@ -265,18 +326,42 @@ public class WebhookNotificationService {
         } catch (UnknownHostException exception) {
             throw new IllegalStateException("Notification destination could not be resolved", exception);
         }
-        Integer statusCode = webClient.post()
+        DeliveryHttpResponse response = webClient.post()
                 .uri(url)
                 .headers(headersCustomizer)
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(payload)
-                .exchangeToMono(response -> response.releaseBody()
-                        .thenReturn(response.statusCode().value()))
+                .exchangeToMono(clientResponse -> {
+                    HttpHeaders headers = new HttpHeaders();
+                    headers.putAll(clientResponse.headers().asHttpHeaders());
+                    return clientResponse.releaseBody().thenReturn(
+                            new DeliveryHttpResponse(
+                                    clientResponse.statusCode().value(),
+                                    headers
+                            )
+                    );
+                })
                 .timeout(DELIVERY_TIMEOUT)
                 .block();
-        return statusCode != null && statusCode >= 200 && statusCode < 300
-                ? DispatchResult.sent(statusCode)
-                : DispatchResult.failed(statusCode, "Notification endpoint returned a non-success HTTP status");
+        if (response == null) {
+            return DispatchResult.failed(
+                    null,
+                    "Notification endpoint returned no response",
+                    true,
+                    null
+            );
+        }
+        int statusCode = response.statusCode();
+        if (statusCode >= 200 && statusCode < 300) {
+            return DispatchResult.sent(statusCode);
+        }
+        boolean retryable = statusCode == 408 || statusCode == 429 || statusCode >= 500;
+        return DispatchResult.failed(
+                statusCode,
+                "Notification endpoint returned HTTP " + statusCode,
+                retryable,
+                parseRetryAfterSeconds(response.headers())
+        );
     }
 
     private DispatchResult sendOpsgenie(String apiKey, Map<String, Object> payload) {
@@ -414,7 +499,77 @@ public class WebhookNotificationService {
         delivery.setErrorMessage(errorMessage);
         delivery.setPayloadJson(payloadJson);
         delivery.setNextAttemptAt(nextAttemptAt);
-        deliveryRepository.save(delivery);
+        String eventKey = eventKey(event, target.provider());
+        delivery.setEventKey(eventKey);
+        try {
+            deliveryRepository.saveAndFlush(delivery);
+        } catch (DataIntegrityViolationException exception) {
+            if (!deliveryRepository.existsByEventKey(eventKey)) {
+                throw exception;
+            }
+        }
+    }
+
+    private String eventKey(
+            IncidentNotificationEvent event,
+            NotificationProvider provider
+    ) {
+        return event.incidentId() + ":" + event.eventType() + ":" + provider;
+    }
+
+    private void clearClaim(NotificationDelivery delivery) {
+        delivery.setClaimedBy(null);
+        delivery.setClaimedUntil(null);
+    }
+
+    private long retryDelaySeconds(Long retryAfterSeconds, int attemptCount) {
+        if (retryAfterSeconds != null) {
+            return Math.min(Math.max(retryAfterSeconds, 1), 86_400);
+        }
+        int exponent = Math.min(Math.max(attemptCount - 1, 0), 10);
+        long baseDelay = Math.min((long) retryDelaySeconds * (1L << exponent), 3_600L);
+        long jitterBound = Math.max(1, baseDelay / 4);
+        return baseDelay + ThreadLocalRandom.current().nextLong(jitterBound + 1);
+    }
+
+    private Long parseRetryAfterSeconds(HttpHeaders headers) {
+        String retryAfter = headers.getFirst(HttpHeaders.RETRY_AFTER);
+        if (retryAfter == null || retryAfter.isBlank()) {
+            return null;
+        }
+        try {
+            return Math.max(1, Long.parseLong(retryAfter.trim()));
+        } catch (NumberFormatException ignored) {
+            try {
+                Instant retryAt = ZonedDateTime.parse(
+                        retryAfter,
+                        DateTimeFormatter.RFC_1123_DATE_TIME
+                ).toInstant();
+                return Math.max(1, Duration.between(Instant.now(), retryAt).toSeconds());
+            } catch (DateTimeParseException ignoredDate) {
+                return null;
+            }
+        }
+    }
+
+    private boolean isRetryableException(Exception exception) {
+        Throwable cause = rootCause(exception);
+        return cause instanceof TimeoutException
+                || hasCause(exception, WebClientRequestException.class);
+    }
+
+    private boolean hasCause(Throwable throwable, Class<? extends Throwable> type) {
+        Throwable current = throwable;
+        while (current != null) {
+            if (type.isInstance(current)) {
+                return true;
+            }
+            if (current.getCause() == current) {
+                break;
+            }
+            current = current.getCause();
+        }
+        return false;
     }
 
     private String text(Map<String, Object> payload) {
@@ -434,15 +589,20 @@ public class WebhookNotificationService {
     }
 
     private String readableMessage(Exception exception) {
-        Throwable current = exception;
-        while (current.getCause() != null && current.getCause() != current) {
-            current = current.getCause();
-        }
+        Throwable current = rootCause(exception);
         String message = current.getMessage();
         if (message == null || message.isBlank()) {
             message = current.getClass().getSimpleName();
         }
         return message.length() > 500 ? message.substring(0, 500) : message;
+    }
+
+    private Throwable rootCause(Throwable throwable) {
+        Throwable current = throwable;
+        while (current.getCause() != null && current.getCause() != current) {
+            current = current.getCause();
+        }
+        return current;
     }
 
     private NotificationDeliveryResponse toResponse(NotificationDelivery delivery) {
@@ -458,21 +618,38 @@ public class WebhookNotificationService {
                 delivery.getErrorMessage(),
                 delivery.getAttemptCount(),
                 delivery.getNextAttemptAt(),
+                delivery.getLastAttemptAt(),
                 delivery.getAttemptedAt()
         );
+    }
+
+    private record DeliveryHttpResponse(int statusCode, HttpHeaders headers) {
     }
 
     private record DispatchResult(
             boolean success,
             Integer httpStatusCode,
-            String errorMessage
+            String errorMessage,
+            boolean retryable,
+            Long retryAfterSeconds
     ) {
         static DispatchResult sent(Integer httpStatusCode) {
-            return new DispatchResult(true, httpStatusCode, null);
+            return new DispatchResult(true, httpStatusCode, null, false, null);
         }
 
-        static DispatchResult failed(Integer httpStatusCode, String errorMessage) {
-            return new DispatchResult(false, httpStatusCode, errorMessage);
+        static DispatchResult failed(
+                Integer httpStatusCode,
+                String errorMessage,
+                boolean retryable,
+                Long retryAfterSeconds
+        ) {
+            return new DispatchResult(
+                    false,
+                    httpStatusCode,
+                    errorMessage,
+                    retryable,
+                    retryAfterSeconds
+            );
         }
     }
 }
