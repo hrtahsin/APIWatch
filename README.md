@@ -43,7 +43,7 @@ Operations teams need a fast answer to four questions: what is failing, when it 
 | Backend | Java 21, Spring Boot 3.5, Spring Web, WebClient, Spring Data JPA |
 | Database | PostgreSQL 16, Flyway |
 | Frontend | React 19, TypeScript, Vite, Tailwind CSS, Axios, Recharts |
-| Testing | JUnit 5, Mockito, Spring MockMvc, ESLint, TypeScript |
+| Testing | JUnit 5, Mockito, Spring MockMvc, Testcontainers, ESLint, TypeScript |
 | Delivery | Docker, Docker Compose, GitHub Actions |
 
 ## Architecture
@@ -133,6 +133,24 @@ Run the backend:
 cd apiwatch-backend
 mvn spring-boot:run
 ```
+
+Fast backend tests use H2:
+
+```bash
+cd apiwatch-backend
+mvn test
+```
+
+The authoritative PostgreSQL integration suite applies every Flyway migration
+to a disposable PostgreSQL 16 Testcontainer and requires a running Docker
+daemon:
+
+```bash
+cd apiwatch-backend
+mvn verify -Ppostgres-it
+```
+
+GitHub Actions runs both suites on every pull request.
 
 Run the frontend in another terminal:
 
