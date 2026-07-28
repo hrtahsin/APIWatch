@@ -1,17 +1,16 @@
 package com.hasan.apiwatch.service;
 
 import com.hasan.apiwatch.dto.HealthCheckResponse;
-import com.hasan.apiwatch.entity.HealthCheck;
 import com.hasan.apiwatch.entity.MonitoredService;
 import com.hasan.apiwatch.enums.FailureType;
 import com.hasan.apiwatch.enums.HealthStatus;
 import com.hasan.apiwatch.exception.CheckAlreadyRunningException;
 import com.hasan.apiwatch.exception.ServiceRateLimitedException;
 import com.hasan.apiwatch.exception.UnsafeTargetException;
-import com.hasan.apiwatch.repository.HealthCheckRepository;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.core.io.buffer.DataBufferLimitException;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientRequestException;
 
@@ -30,37 +29,37 @@ import java.util.concurrent.TimeoutException;
 public class HealthCheckRunner {
 
     private static final Duration DEFAULT_RATE_LIMIT_PAUSE = Duration.ofMinutes(1);
+    private static final int MAX_RESPONSE_BODY_BYTES = 64 * 1024;
 
     private final WebClient webClient;
-    private final HealthCheckRepository healthCheckRepository;
     private final ServiceMonitorService serviceMonitorService;
-    private final IncidentService incidentService;
+    private final HealthCheckPersistenceService persistenceService;
     private final ServiceCredentialService credentialService;
     private final UrlSafetyService urlSafetyService;
     private final Set<Long> runningServiceIds = ConcurrentHashMap.newKeySet();
 
     public HealthCheckRunner(
             WebClient.Builder webClientBuilder,
-            HealthCheckRepository healthCheckRepository,
             ServiceMonitorService serviceMonitorService,
-            IncidentService incidentService,
+            HealthCheckPersistenceService persistenceService,
             ServiceCredentialService credentialService,
             UrlSafetyService urlSafetyService
     ) {
-        this.webClient = webClientBuilder.build();
-        this.healthCheckRepository = healthCheckRepository;
+        this.webClient = webClientBuilder.clone()
+                .codecs(codecs ->
+                        codecs.defaultCodecs().maxInMemorySize(MAX_RESPONSE_BODY_BYTES)
+                )
+                .build();
         this.serviceMonitorService = serviceMonitorService;
-        this.incidentService = incidentService;
+        this.persistenceService = persistenceService;
         this.credentialService = credentialService;
         this.urlSafetyService = urlSafetyService;
     }
 
-    @Transactional
     public HealthCheckResponse run(Long serviceId) {
         return run(serviceMonitorService.getEntity(serviceId));
     }
 
-    @Transactional
     public HealthCheckResponse run(MonitoredService service) {
         Long serviceId = service.getId();
         Instant rateLimitedUntil = service.getRateLimitedUntil();
@@ -72,13 +71,13 @@ public class HealthCheckRunner {
         }
 
         try {
-            return execute(service);
+            return persistenceService.persist(serviceId, execute(service));
         } finally {
             runningServiceIds.remove(serviceId);
         }
     }
 
-    private HealthCheckResponse execute(MonitoredService service) {
+    private HealthCheckResult execute(MonitoredService service) {
         long startedAt = System.nanoTime();
         Integer statusCode = null;
         String errorMessage = null;
@@ -86,12 +85,14 @@ public class HealthCheckRunner {
         Long retryAfterSeconds = null;
         Long rateLimitRemaining = null;
         Instant rateLimitResetAt = null;
+        Instant rateLimitedUntil = null;
+        boolean clearRateLimit = false;
         HealthStatus status;
 
         try {
             urlSafetyService.assertRequestAllowed(service.getUrl());
-            long hardTimeoutMs = Math.min(120_000L, service.getTimeoutMs() + 1_000L);
-            EndpointResponse endpointResponse = webClient.get()
+            EndpointResponse endpointResponse = webClient
+                    .method(HttpMethod.valueOf(service.getMethod().name()))
                     .uri(service.getUrl())
                     .headers(headers -> credentialService.applyTo(service, headers))
                     .exchangeToMono(response -> {
@@ -114,7 +115,7 @@ public class HealthCheckRunner {
                                         body
                                 ));
                     })
-                    .timeout(Duration.ofMillis(hardTimeoutMs))
+                    .timeout(Duration.ofMillis(service.getTimeoutMs()))
                     .block();
 
             if (endpointResponse == null) {
@@ -133,18 +134,18 @@ public class HealthCheckRunner {
                 if (rateLimitResetAt != null && rateLimitResetAt.isAfter(retryAt)) {
                     retryAt = rateLimitResetAt;
                 }
-                serviceMonitorService.setRateLimitedUntil(service.getId(), retryAt);
+                rateLimitedUntil = retryAt;
                 status = HealthStatus.RATE_LIMITED;
                 failureType = FailureType.RATE_LIMITED;
                 errorMessage = "Endpoint rate limit reached; checks paused until " + retryAt;
             } else {
-                serviceMonitorService.clearRateLimit(service.getId());
+                clearRateLimit = true;
                 status = classify(
                         statusCode,
                         service.getExpectedStatusMin(),
                         service.getExpectedStatusMax(),
                         responseTimeMs,
-                        service.getTimeoutMs()
+                        service.getSlowThresholdMs()
                 );
                 if (status == HealthStatus.DOWN) {
                     failureType = FailureType.HTTP_STATUS;
@@ -160,22 +161,23 @@ public class HealthCheckRunner {
         } catch (Exception exception) {
             status = HealthStatus.DOWN;
             failureType = classifyFailure(exception);
-            errorMessage = readableMessage(exception);
+            errorMessage = rootCause(exception) instanceof DataBufferLimitException
+                    ? "Response body exceeded the 65536-byte validation limit"
+                    : readableMessage(exception);
         }
 
-        HealthCheck check = new HealthCheck();
-        check.setMonitoredService(service);
-        check.setStatus(status);
-        check.setHttpStatusCode(statusCode);
-        check.setResponseTimeMs(elapsedMilliseconds(startedAt));
-        check.setFailureType(failureType);
-        check.setErrorMessage(errorMessage);
-        check.setRetryAfterSeconds(retryAfterSeconds);
-        check.setRateLimitRemaining(rateLimitRemaining);
-        check.setRateLimitResetAt(rateLimitResetAt);
-        HealthCheck saved = healthCheckRepository.save(check);
-        incidentService.evaluate(service, saved);
-        return toResponse(saved);
+        return new HealthCheckResult(
+                status,
+                statusCode,
+                elapsedMilliseconds(startedAt),
+                failureType,
+                errorMessage,
+                retryAfterSeconds,
+                rateLimitRemaining,
+                rateLimitResetAt,
+                rateLimitedUntil,
+                clearRateLimit
+        );
     }
 
     public HealthStatus classify(
@@ -215,6 +217,9 @@ public class HealthCheckRunner {
         }
         if (cause instanceof UnsafeTargetException) {
             return FailureType.SECURITY_BLOCKED;
+        }
+        if (cause instanceof DataBufferLimitException) {
+            return FailureType.RESPONSE_VALIDATION;
         }
         if (exception instanceof WebClientRequestException) {
             return FailureType.NETWORK_ERROR;
@@ -281,22 +286,6 @@ public class HealthCheckRunner {
             current = current.getCause();
         }
         return current;
-    }
-
-    private HealthCheckResponse toResponse(HealthCheck check) {
-        return new HealthCheckResponse(
-                check.getId(),
-                check.getMonitoredService().getId(),
-                check.getStatus(),
-                check.getHttpStatusCode(),
-                check.getResponseTimeMs(),
-                check.getFailureType(),
-                check.getErrorMessage(),
-                check.getRetryAfterSeconds(),
-                check.getRateLimitRemaining(),
-                check.getRateLimitResetAt(),
-                check.getCheckedAt()
-        );
     }
 
     private record EndpointResponse(int statusCode, HttpHeaders headers, String body) {

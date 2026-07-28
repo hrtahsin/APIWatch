@@ -9,7 +9,7 @@ Operations teams need a fast answer to four questions: what is failing, when it 
 ## Features
 
 - Service registration and configuration through REST endpoints and the dashboard
-- Scheduled and manually triggered HTTP health checks
+- Scheduled and manually triggered GET and HEAD health checks
 - Async scheduled monitoring workers with database leases to avoid duplicate checks
 - `UP`, `SLOW`, `DOWN`, and `UNKNOWN` service states
 - Dedicated `RATE_LIMITED` state with retry metadata and automatic check pauses
@@ -18,7 +18,7 @@ Operations teams need a fast answer to four questions: what is failing, when it 
 - Masked credential metadata in API responses and the dashboard
 - Per-service check intervals and pause/resume controls
 - Expected HTTP status ranges and optional response-body validation
-- Configurable timeout and failure threshold
+- Independent request timeout, slow-response threshold, and failure threshold
 - Automatic incident creation after consecutive failures
 - Automatic and manual incident resolution
 - Encrypted incident webhook configuration with delivery cooldowns
@@ -165,6 +165,7 @@ curl -X POST http://localhost:8080/api/services \
     "expectedStatusMin": 200,
     "expectedStatusMax": 299,
     "timeoutMs": 2000,
+    "slowThresholdMs": 1200,
     "checkIntervalSeconds": 60,
     "responseBodyContains": "\"status\":\"ok\"",
     "failureThreshold": 3,
@@ -226,15 +227,19 @@ History cleanup runs daily at 02:30 by default. Configure
 ## Incident Rules
 
 1. Every completed request is stored as a health check.
-2. A status inside the configured range and within the latency threshold is `UP`.
-3. A matching status beyond the threshold is `SLOW`.
-4. Network errors, timeouts, unexpected statuses, and body validation failures are `DOWN`.
-5. HTTP `429`, or `403` with an exhausted rate-limit header, is `RATE_LIMITED`.
-6. Rate-limited services pause until `Retry-After` or provider reset metadata allows a retry.
-7. The configured number of consecutive `DOWN` checks creates one active incident.
-8. A later `UP` check resolves the active incident and records its duration.
-9. Enabled webhooks receive structured JSON when incidents open or resolve.
-10. Repeated events for the same service are suppressed during the configured cooldown.
+2. A request that exceeds the configured request timeout is `DOWN`.
+3. A status inside the configured range and within the slow-response threshold is `UP`.
+4. A matching status beyond the slow-response threshold is `SLOW`.
+5. Network errors, timeouts, unexpected statuses, and body validation failures are `DOWN`.
+6. HTTP `429`, or `403` with an exhausted rate-limit header, is `RATE_LIMITED`.
+7. Rate-limited services pause until `Retry-After` or provider reset metadata allows a retry.
+8. The configured number of consecutive `DOWN` checks creates one active incident.
+9. A later `UP` check resolves the active incident and records its duration.
+10. Enabled notification providers receive incident open and resolution events.
+11. Repeated events for the same service are suppressed during the configured cooldown.
+
+Response-body validation is available for GET checks and is capped at 64 KiB.
+HEAD checks validate status and latency only.
 
 Webhook URLs are encrypted with `APIWATCH_ENCRYPTION_KEY` and never returned by
 the API. Delivery attempts record success, failure, HTTP status, and cooldown

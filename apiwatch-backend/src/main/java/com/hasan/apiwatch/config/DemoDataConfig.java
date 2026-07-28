@@ -51,6 +51,7 @@ public class DemoDataConfig {
         service.setMethod(HttpMethodType.GET);
         service.setExpectedStatusCode(200);
         service.setTimeoutMs(timeoutMs);
+        service.setSlowThresholdMs(timeoutMs);
         service.setFailureThreshold(failureThreshold);
         service.setActive(true);
         return service;

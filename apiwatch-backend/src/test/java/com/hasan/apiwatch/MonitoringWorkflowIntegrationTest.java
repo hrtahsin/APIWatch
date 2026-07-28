@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -52,6 +53,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class MonitoringWorkflowIntegrationTest {
 
     private static final AtomicBoolean FLAKY_HEALTHY = new AtomicBoolean(false);
+    private static final AtomicReference<String> LAST_METHOD = new AtomicReference<>();
     private static HttpServer server;
     private static String baseUrl;
 
@@ -79,6 +81,22 @@ class MonitoringWorkflowIntegrationTest {
         });
         server.createContext("/flaky", exchange ->
                 respond(exchange, FLAKY_HEALTHY.get() ? 200 : 503, "status")
+        );
+        server.createContext("/method", exchange -> {
+            LAST_METHOD.set(exchange.getRequestMethod());
+            exchange.sendResponseHeaders(204, -1);
+            exchange.close();
+        });
+        server.createContext("/slow", exchange -> {
+            try {
+                Thread.sleep(150);
+            } catch (InterruptedException exception) {
+                Thread.currentThread().interrupt();
+            }
+            respond(exchange, 200, "healthy");
+        });
+        server.createContext("/large", exchange ->
+                respond(exchange, 200, "x".repeat(70 * 1024))
         );
         server.start();
         baseUrl = "http://localhost:" + server.getAddress().getPort();
@@ -229,6 +247,94 @@ class MonitoringWorkflowIntegrationTest {
                 .andExpect(jsonPath("$.content[0].name").value("Marketing API"));
     }
 
+    @Test
+    void headChecksUseConfiguredMethod() throws Exception {
+        LAST_METHOD.set(null);
+        long serviceId = createConfiguredService(
+                "HEAD API",
+                baseUrl + "/method",
+                "HEAD",
+                1000,
+                500,
+                null
+        );
+
+        runCheck(serviceId, "UP");
+
+        assertThat(LAST_METHOD.get()).isEqualTo("HEAD");
+    }
+
+    @Test
+    void requestTimeoutAndSlowThresholdHaveIndependentSemantics() throws Exception {
+        long slowServiceId = createConfiguredService(
+                "Slow Threshold API",
+                baseUrl + "/slow",
+                "GET",
+                1000,
+                1,
+                null
+        );
+        runCheck(slowServiceId, "SLOW");
+
+        long timeoutServiceId = createConfiguredService(
+                "Timeout API",
+                baseUrl + "/slow",
+                "GET",
+                100,
+                1000,
+                null
+        );
+        runCheck(timeoutServiceId, "DOWN");
+    }
+
+    @Test
+    void oversizedValidationBodyIsRejectedSafely() throws Exception {
+        long serviceId = createConfiguredService(
+                "Large Response API",
+                baseUrl + "/large",
+                "GET",
+                1000,
+                500,
+                "expected-marker"
+        );
+
+        mockMvc.perform(post("/api/services/{id}/check", serviceId)
+                        .with(httpBasic("test-admin", "admin-password")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("DOWN"))
+                .andExpect(jsonPath("$.failureType").value("RESPONSE_VALIDATION"))
+                .andExpect(jsonPath("$.errorMessage").value(
+                        "Response body exceeded the 65536-byte validation limit"
+                ));
+    }
+
+    @Test
+    void headChecksRejectResponseBodyValidation() throws Exception {
+        mockMvc.perform(post("/api/services")
+                        .with(httpBasic("test-admin", "admin-password"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "name": "Invalid HEAD API",
+                                  "url": "%s/method",
+                                  "method": "HEAD",
+                                  "expectedStatusMin": 200,
+                                  "expectedStatusMax": 299,
+                                  "timeoutMs": 1000,
+                                  "slowThresholdMs": 500,
+                                  "checkIntervalSeconds": 60,
+                                  "responseBodyContains": "healthy",
+                                  "failureThreshold": 3,
+                                  "active": true,
+                                  "authType": "NONE"
+                                }
+                                """.formatted(baseUrl)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value(
+                        "Response body validation is not supported for HEAD checks"
+                ));
+    }
+
     private long createService(String name, String url, int failureThreshold) throws Exception {
         String response = mockMvc.perform(post("/api/services")
                         .with(httpBasic("test-admin", "admin-password"))
@@ -289,6 +395,50 @@ class MonitoringWorkflowIntegrationTest {
                 .getContentAsString();
         JsonNode json = objectMapper.readTree(response);
         return json.get("id").asLong();
+    }
+
+    private long createConfiguredService(
+            String name,
+            String url,
+            String method,
+            int timeoutMs,
+            int slowThresholdMs,
+            String responseBodyContains
+    ) throws Exception {
+        String bodyValidation = responseBodyContains == null
+                ? "null"
+                : objectMapper.writeValueAsString(responseBodyContains);
+        String response = mockMvc.perform(post("/api/services")
+                        .with(httpBasic("test-admin", "admin-password"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "name": "%s",
+                                  "url": "%s",
+                                  "method": "%s",
+                                  "expectedStatusMin": 200,
+                                  "expectedStatusMax": 299,
+                                  "timeoutMs": %d,
+                                  "slowThresholdMs": %d,
+                                  "checkIntervalSeconds": 60,
+                                  "responseBodyContains": %s,
+                                  "failureThreshold": 3,
+                                  "active": true,
+                                  "authType": "NONE"
+                                }
+                                """.formatted(
+                                name,
+                                url,
+                                method,
+                                timeoutMs,
+                                slowThresholdMs,
+                                bodyValidation
+                        )))
+                .andExpect(status().isCreated())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        return objectMapper.readTree(response).get("id").asLong();
     }
 
     private void runCheck(long serviceId, String expectedStatus) throws Exception {

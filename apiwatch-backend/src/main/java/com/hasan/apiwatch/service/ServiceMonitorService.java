@@ -81,6 +81,7 @@ public class ServiceMonitorService {
                 request.method() == null ? HttpMethodType.GET : request.method(),
                 expectedStatus,
                 request.timeoutMs() == null ? 2000 : request.timeoutMs(),
+                resolveSlowThreshold(request.slowThresholdMs(), request.timeoutMs()),
                 request.checkIntervalSeconds() == null ? 60 : request.checkIntervalSeconds(),
                 request.responseBodyContains(),
                 request.failureThreshold() == null ? 3 : request.failureThreshold(),
@@ -166,6 +167,7 @@ public class ServiceMonitorService {
                 request.method(),
                 expectedStatus,
                 request.timeoutMs(),
+                request.slowThresholdMs(),
                 request.checkIntervalSeconds(),
                 request.responseBodyContains(),
                 request.failureThreshold(),
@@ -259,6 +261,7 @@ public class ServiceMonitorService {
             HttpMethodType method,
             ExpectedStatusRange expectedStatus,
             int timeoutMs,
+            int slowThresholdMs,
             int checkIntervalSeconds,
             String responseBodyContains,
             int failureThreshold,
@@ -267,6 +270,12 @@ public class ServiceMonitorService {
             int notificationEscalationMinutes,
             boolean active
     ) {
+        String normalizedResponseBodyContains = normalizeOptional(responseBodyContains);
+        if (method == HttpMethodType.HEAD && normalizedResponseBodyContains != null) {
+            throw new BadRequestException(
+                    "Response body validation is not supported for HEAD checks"
+            );
+        }
         service.setName(name);
         service.setUrl(url);
         service.setOwnerName(normalizeOptional(ownerName));
@@ -277,8 +286,9 @@ public class ServiceMonitorService {
         service.setExpectedStatusMin(expectedStatus.min());
         service.setExpectedStatusMax(expectedStatus.max());
         service.setTimeoutMs(timeoutMs);
+        service.setSlowThresholdMs(slowThresholdMs);
         service.setCheckIntervalSeconds(checkIntervalSeconds);
-        service.setResponseBodyContains(normalizeOptional(responseBodyContains));
+        service.setResponseBodyContains(normalizedResponseBodyContains);
         service.setFailureThreshold(failureThreshold);
         service.setNotifyOnIncidentOpen(notifyOnIncidentOpen);
         service.setNotifyOnIncidentResolve(notifyOnIncidentResolve);
@@ -309,6 +319,13 @@ public class ServiceMonitorService {
             );
         }
         return new ExpectedStatusRange(requestedMin, requestedMax);
+    }
+
+    private int resolveSlowThreshold(Integer slowThresholdMs, Integer timeoutMs) {
+        if (slowThresholdMs != null) {
+            return slowThresholdMs;
+        }
+        return timeoutMs == null ? 2000 : timeoutMs;
     }
 
     private String normalizeOptional(String value) {
@@ -400,6 +417,7 @@ public class ServiceMonitorService {
                 service.getExpectedStatusMin(),
                 service.getExpectedStatusMax(),
                 service.getTimeoutMs(),
+                service.getSlowThresholdMs(),
                 service.getCheckIntervalSeconds(),
                 service.getResponseBodyContains(),
                 service.getFailureThreshold(),
