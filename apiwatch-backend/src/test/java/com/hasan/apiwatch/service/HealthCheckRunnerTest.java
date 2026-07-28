@@ -18,6 +18,7 @@ import java.net.ConnectException;
 import java.net.UnknownHostException;
 import java.time.Instant;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
@@ -84,18 +85,22 @@ class HealthCheckRunnerTest {
 
     @Test
     void rejectsConcurrentChecksForTheSameService() throws Exception {
+        CountDownLatch requestStarted = new CountDownLatch(1);
         HealthCheckRunner blockingRunner = new HealthCheckRunner(
-                WebClient.builder().exchangeFunction(request -> Mono.never()),
+                WebClient.builder().exchangeFunction(request -> {
+                    requestStarted.countDown();
+                    return Mono.never();
+                }),
                 mock(ServiceMonitorService.class),
                 persistenceService(),
                 mock(ServiceCredentialService.class),
                 mock(UrlSafetyService.class)
         );
         MonitoredService service = service(12L);
-        service.setTimeoutMs(100);
+        service.setTimeoutMs(1000);
 
         CompletableFuture<?> firstCheck = CompletableFuture.runAsync(() -> blockingRunner.run(service));
-        TimeUnit.MILLISECONDS.sleep(100);
+        assertThat(requestStarted.await(1, TimeUnit.SECONDS)).isTrue();
 
         assertThatThrownBy(() -> blockingRunner.run(service))
                 .isInstanceOf(CheckAlreadyRunningException.class)

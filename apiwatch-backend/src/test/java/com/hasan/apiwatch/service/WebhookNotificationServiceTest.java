@@ -17,6 +17,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpHeaders;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.reactive.function.client.ClientResponse;
@@ -30,6 +31,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -55,11 +57,13 @@ class WebhookNotificationServiceTest {
 
         ArgumentCaptor<NotificationDelivery> captor =
                 ArgumentCaptor.forClass(NotificationDelivery.class);
-        verify(repository).save(captor.capture());
+        verify(repository).saveAndFlush(captor.capture());
         assertThat(captor.getValue().getStatus()).isEqualTo(NotificationDeliveryStatus.PENDING);
         assertThat(captor.getValue().getProvider()).isEqualTo(NotificationProvider.WEBHOOK);
         assertThat(captor.getValue().getPayloadJson()).contains("INCIDENT_OPENED");
         assertThat(captor.getValue().getDestinationEncrypted()).isNotBlank();
+        assertThat(captor.getValue().getEventKey())
+                .isEqualTo("11:INCIDENT_OPENED:WEBHOOK");
     }
 
     @Test
@@ -81,6 +85,7 @@ class WebhookNotificationServiceTest {
         assertThat(captor.getValue().getStatus()).isEqualTo(NotificationDeliveryStatus.SENT);
         assertThat(captor.getValue().getHttpStatusCode()).isEqualTo(204);
         assertThat(captor.getValue().getAttemptCount()).isEqualTo(1);
+        assertThat(captor.getValue().getClaimedBy()).isNull();
     }
 
     @Test
@@ -90,6 +95,7 @@ class WebhookNotificationServiceTest {
         previous.setServiceId(7L);
         previous.setEventType(NotificationEventType.INCIDENT_OPENED);
         previous.setStatus(NotificationDeliveryStatus.SENT);
+        previous.setEventKey("previous");
         ReflectionTestUtils.setField(previous, "attemptedAt", Instant.now().minusSeconds(30));
         when(repository.findFirstByServiceIdAndEventTypeAndStatusOrderByAttemptedAtDesc(
                 7L,
@@ -102,9 +108,111 @@ class WebhookNotificationServiceTest {
 
         ArgumentCaptor<NotificationDelivery> captor =
                 ArgumentCaptor.forClass(NotificationDelivery.class);
-        verify(repository).save(captor.capture());
+        verify(repository).saveAndFlush(captor.capture());
         assertThat(captor.getValue().getStatus())
                 .isEqualTo(NotificationDeliveryStatus.SKIPPED_COOLDOWN);
+    }
+
+    @Test
+    void suppressesDuplicateIncidentEvents() {
+        NotificationDeliveryRepository repository = mock(NotificationDeliveryRepository.class);
+        when(repository.existsByEventKey("11:INCIDENT_OPENED:WEBHOOK")).thenReturn(true);
+
+        service(repository).enqueue(event(), new MonitoredService(), target());
+
+        verify(repository, never()).save(any(NotificationDelivery.class));
+    }
+
+    @Test
+    void retriesServerFailuresAndReleasesClaim() {
+        NotificationDeliveryRepository repository = mock(NotificationDeliveryRepository.class);
+        WebhookNotificationService service = service(
+                repository,
+                WebClient.builder().exchangeFunction(request -> Mono.just(
+                        ClientResponse.create(HttpStatus.SERVICE_UNAVAILABLE).build()
+                ))
+        );
+        NotificationDelivery delivery = pendingDelivery();
+
+        service.deliverPending(delivery);
+
+        assertThat(delivery.getStatus()).isEqualTo(NotificationDeliveryStatus.PENDING);
+        assertThat(delivery.getAttemptCount()).isEqualTo(1);
+        assertThat(delivery.getNextAttemptAt()).isAfter(Instant.now());
+        assertThat(delivery.getClaimedBy()).isNull();
+        assertThat(delivery.getClaimedUntil()).isNull();
+    }
+
+    @Test
+    void treatsNonRetryableClientFailuresAsTerminal() {
+        NotificationDeliveryRepository repository = mock(NotificationDeliveryRepository.class);
+        WebhookNotificationService service = service(
+                repository,
+                WebClient.builder().exchangeFunction(request -> Mono.just(
+                        ClientResponse.create(HttpStatus.BAD_REQUEST).build()
+                ))
+        );
+        NotificationDelivery delivery = pendingDelivery();
+
+        service.deliverPending(delivery);
+
+        assertThat(delivery.getStatus()).isEqualTo(NotificationDeliveryStatus.FAILED);
+        assertThat(delivery.getNextAttemptAt()).isNull();
+        assertThat(delivery.getHttpStatusCode()).isEqualTo(400);
+    }
+
+    @Test
+    void respectsRetryAfterForRateLimitedProviders() {
+        NotificationDeliveryRepository repository = mock(NotificationDeliveryRepository.class);
+        WebhookNotificationService service = service(
+                repository,
+                WebClient.builder().exchangeFunction(request -> Mono.just(
+                        ClientResponse.create(HttpStatus.TOO_MANY_REQUESTS)
+                                .header(HttpHeaders.RETRY_AFTER, "120")
+                                .build()
+                ))
+        );
+        NotificationDelivery delivery = pendingDelivery();
+        Instant beforeAttempt = Instant.now();
+
+        service.deliverPending(delivery);
+
+        assertThat(delivery.getStatus()).isEqualTo(NotificationDeliveryStatus.PENDING);
+        assertThat(delivery.getNextAttemptAt())
+                .isAfterOrEqualTo(beforeAttempt.plusSeconds(120));
+    }
+
+    @Test
+    void administratorCanRequeueFailedDelivery() {
+        NotificationDeliveryRepository repository = mock(NotificationDeliveryRepository.class);
+        AuditLogService auditLogService = mock(AuditLogService.class);
+        NotificationDelivery delivery = pendingDelivery();
+        delivery.setStatus(NotificationDeliveryStatus.FAILED);
+        delivery.setAttemptCount(3);
+        delivery.setHttpStatusCode(503);
+        delivery.setErrorMessage("failed");
+        ReflectionTestUtils.setField(delivery, "id", 44L);
+        when(repository.findById(44L)).thenReturn(Optional.of(delivery));
+        when(repository.save(any(NotificationDelivery.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        WebhookNotificationService service = service(
+                repository,
+                WebClient.builder(),
+                auditLogService
+        );
+
+        var response = service.retryFailed(44L);
+
+        assertThat(response.status()).isEqualTo(NotificationDeliveryStatus.PENDING);
+        assertThat(response.attemptCount()).isZero();
+        assertThat(response.nextAttemptAt()).isNotNull();
+        verify(auditLogService).record(
+                com.hasan.apiwatch.enums.AuditAction.NOTIFICATION_DELIVERY_RETRIED,
+                "NOTIFICATION_DELIVERY",
+                44L,
+                "INCIDENT_OPENED",
+                "Queued failed notification delivery for manual retry"
+        );
     }
 
     private WebhookNotificationService service(NotificationDeliveryRepository repository) {
@@ -121,20 +229,38 @@ class WebhookNotificationServiceTest {
             NotificationDeliveryRepository repository,
             WebClient.Builder webClientBuilder
     ) {
+        return service(repository, webClientBuilder, mock(AuditLogService.class));
+    }
+
+    @SuppressWarnings("unchecked")
+    private WebhookNotificationService service(
+            NotificationDeliveryRepository repository,
+            WebClient.Builder webClientBuilder,
+            AuditLogService auditLogService
+    ) {
         return new WebhookNotificationService(
                 webClientBuilder,
                 mock(NotificationSettingsService.class),
                 repository,
+                claimService(),
                 mock(MonitoredServiceRepository.class),
                 activeIncidentRepository(),
                 encryptionService,
                 new UrlSafetyService(false, ""),
                 objectMapper,
                 mock(ObjectProvider.class),
+                auditLogService,
                 3,
                 60,
                 "apiwatch@example.com"
         );
+    }
+
+    private NotificationDeliveryClaimService claimService() {
+        NotificationDeliveryClaimService claimService =
+                mock(NotificationDeliveryClaimService.class);
+        when(claimService.ownerId()).thenReturn("test-worker");
+        return claimService;
     }
 
     private IncidentRepository activeIncidentRepository() {
@@ -163,7 +289,10 @@ class WebhookNotificationServiceTest {
         delivery.setDestinationDisplay("https://hooks.example.com/****");
         delivery.setDestinationEncrypted(encryptionService.encrypt("https://hooks.example.com/incidents"));
         delivery.setEventType(NotificationEventType.INCIDENT_OPENED);
-        delivery.setStatus(NotificationDeliveryStatus.PENDING);
+        delivery.setStatus(NotificationDeliveryStatus.PROCESSING);
+        delivery.setEventKey("11:INCIDENT_OPENED:WEBHOOK");
+        delivery.setClaimedBy("test-worker");
+        delivery.setClaimedUntil(Instant.now().plusSeconds(30));
         delivery.setPayloadJson(payloadJson());
         delivery.setNextAttemptAt(Instant.now());
         return delivery;

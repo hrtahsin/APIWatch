@@ -18,6 +18,7 @@ public record NotificationDeliveryResponse(
         String errorMessage,
         int attemptCount,
         Instant nextAttemptAt,
+        Instant lastAttemptAt,
         Instant attemptedAt
 ) {
 }

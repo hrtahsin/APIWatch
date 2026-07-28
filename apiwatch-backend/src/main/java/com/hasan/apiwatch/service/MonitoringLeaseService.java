@@ -1,9 +1,7 @@
 package com.hasan.apiwatch.service;
 
-import com.hasan.apiwatch.entity.MonitoringLease;
 import com.hasan.apiwatch.repository.MonitoringLeaseRepository;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,9 +32,7 @@ public class MonitoringLeaseService {
     public boolean tryAcquire(Long serviceId) {
         Instant now = Instant.now();
         Instant leasedUntil = now.plus(leaseDuration);
-        return leaseRepository.findByServiceIdForUpdate(serviceId)
-                .map(existing -> acquireExisting(existing, now, leasedUntil))
-                .orElseGet(() -> acquireNew(serviceId, leasedUntil));
+        return leaseRepository.tryAcquire(serviceId, ownerId, now, leasedUntil) == 1;
     }
 
     @Transactional
@@ -51,35 +47,6 @@ public class MonitoringLeaseService {
 
     String ownerId() {
         return ownerId;
-    }
-
-    private boolean acquireExisting(
-            MonitoringLease existing,
-            Instant now,
-            Instant leasedUntil
-    ) {
-        boolean heldByAnotherInstance = existing.getLeasedUntil().isAfter(now)
-                && !ownerId.equals(existing.getOwnerId());
-        if (heldByAnotherInstance) {
-            return false;
-        }
-        existing.setOwnerId(ownerId);
-        existing.setLeasedUntil(leasedUntil);
-        leaseRepository.save(existing);
-        return true;
-    }
-
-    private boolean acquireNew(Long serviceId, Instant leasedUntil) {
-        try {
-            MonitoringLease lease = new MonitoringLease();
-            lease.setServiceId(serviceId);
-            lease.setOwnerId(ownerId);
-            lease.setLeasedUntil(leasedUntil);
-            leaseRepository.saveAndFlush(lease);
-            return true;
-        } catch (DataIntegrityViolationException ignored) {
-            return false;
-        }
     }
 
     private String resolveOwnerId(String configuredInstanceId) {

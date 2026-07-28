@@ -38,7 +38,7 @@ jobs:
 
       - name: Verify backend
         working-directory: apiwatch-backend
-        run: mvn -B clean verify
+        run: mvn -B clean verify -Ppostgres-it
 
   frontend:
     name: Frontend lint and build
