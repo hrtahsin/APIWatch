@@ -16,6 +16,7 @@ const service: MonitoredService = {
   expectedStatusMin: 200,
   expectedStatusMax: 299,
   timeoutMs: 2000,
+  slowThresholdMs: 1500,
   checkIntervalSeconds: 60,
   responseBodyContains: null,
   failureThreshold: 3,

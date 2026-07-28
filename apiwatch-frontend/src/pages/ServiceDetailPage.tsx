@@ -140,7 +140,8 @@ export function ServiceDetailPage() {
                 ? service.expectedStatusMin
                 : `${service.expectedStatusMin}-${service.expectedStatusMax}`}
             </span>
-            <span>{service.timeoutMs} ms timeout</span>
+            <span>{service.timeoutMs} ms request timeout</span>
+            <span>{service.slowThresholdMs} ms slow threshold</span>
             <span>Every {service.checkIntervalSeconds}s</span>
             <span>Threshold {service.failureThreshold}</span>
             <span>

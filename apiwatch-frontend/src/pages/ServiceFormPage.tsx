@@ -14,6 +14,7 @@ const defaultForm: ServiceInput = {
   expectedStatusMin: 200,
   expectedStatusMax: 299,
   timeoutMs: 2000,
+  slowThresholdMs: 2000,
   checkIntervalSeconds: 60,
   responseBodyContains: '',
   failureThreshold: 3,
@@ -75,6 +76,7 @@ export function ServiceFormPage() {
           expectedStatusMin: service.expectedStatusMin,
           expectedStatusMax: service.expectedStatusMax,
           timeoutMs: service.timeoutMs,
+          slowThresholdMs: service.slowThresholdMs,
           checkIntervalSeconds: service.checkIntervalSeconds,
           responseBodyContains: service.responseBodyContains ?? '',
           failureThreshold: service.failureThreshold,
@@ -213,8 +215,14 @@ export function ServiceFormPage() {
         <div className="form-grid">
           <label>
             <span>HTTP method</span>
-            <select value={form.method} onChange={(event) => update('method', event.target.value as 'GET')}>
+            <select
+              value={form.method}
+              onChange={(event) =>
+                update('method', event.target.value as ServiceInput['method'])
+              }
+            >
               <option value="GET">GET</option>
+              <option value="HEAD">HEAD</option>
             </select>
           </label>
           <label>
@@ -238,7 +246,7 @@ export function ServiceFormPage() {
             />
           </label>
           <label>
-            <span>Timeout ms</span>
+            <span>Request timeout ms</span>
             <input
               min={100}
               max={120000}
@@ -246,6 +254,18 @@ export function ServiceFormPage() {
               value={form.timeoutMs}
               onChange={(event) => update('timeoutMs', Number(event.target.value))}
             />
+            <small>The check is marked DOWN if no response arrives within this limit.</small>
+          </label>
+          <label>
+            <span>Slow threshold ms</span>
+            <input
+              min={1}
+              max={120000}
+              type="number"
+              value={form.slowThresholdMs}
+              onChange={(event) => update('slowThresholdMs', Number(event.target.value))}
+            />
+            <small>A successful response beyond this duration is marked SLOW.</small>
           </label>
           <label>
             <span>Check interval seconds</span>
@@ -278,6 +298,9 @@ export function ServiceFormPage() {
             maxLength={500}
           />
           <small>Leave blank to validate only the HTTP status range.</small>
+          {form.method === 'HEAD' && (
+            <small>HEAD checks cannot validate a response body.</small>
+          )}
         </label>
 
         <label className="toggle-row">

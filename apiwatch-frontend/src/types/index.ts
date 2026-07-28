@@ -43,11 +43,12 @@ export interface MonitoredService {
   ownerName: string | null
   teamName: string | null
   tags: string[]
-  method: 'GET'
+  method: 'GET' | 'HEAD'
   expectedStatusCode: number
   expectedStatusMin: number
   expectedStatusMax: number
   timeoutMs: number
+  slowThresholdMs: number
   checkIntervalSeconds: number
   responseBodyContains: string | null
   failureThreshold: number
@@ -129,10 +130,11 @@ export interface ServiceInput {
   ownerName: string
   teamName: string
   tags: string[]
-  method: 'GET'
+  method: 'GET' | 'HEAD'
   expectedStatusMin: number
   expectedStatusMax: number
   timeoutMs: number
+  slowThresholdMs: number
   checkIntervalSeconds: number
   responseBodyContains: string
   failureThreshold: number
