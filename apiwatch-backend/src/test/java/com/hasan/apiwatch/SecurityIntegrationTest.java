@@ -11,7 +11,9 @@ import org.springframework.test.web.servlet.MockMvc;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -26,7 +28,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "apiwatch.auth.admin.username=test-admin",
         "apiwatch.auth.admin.password=admin-password",
         "apiwatch.auth.viewer.username=test-viewer",
-        "apiwatch.auth.viewer.password=viewer-password"
+        "apiwatch.auth.viewer.password=viewer-password",
+        "apiwatch.frontend-origin=https://dashboard.example",
+        "apiwatch.security.allow-localhost-cors=false"
 })
 @AutoConfigureMockMvc
 class SecurityIntegrationTest {
@@ -41,7 +45,41 @@ class SecurityIntegrationTest {
     void requiresAuthenticationForApiReads() throws Exception {
         mockMvc.perform(get("/api/auth/me"))
                 .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.message").value("Authentication is required"));
+                .andExpect(jsonPath("$.message").value("Authentication is required"))
+                .andExpect(header().string(
+                        "Content-Security-Policy",
+                        "default-src 'none'; frame-ancestors 'none'"
+                ))
+                .andExpect(header().string("X-Content-Type-Options", "nosniff"))
+                .andExpect(header().string("X-Frame-Options", "DENY"))
+                .andExpect(header().string("Referrer-Policy", "no-referrer"))
+                .andExpect(header().string(
+                        "Permissions-Policy",
+                        "camera=(), microphone=(), geolocation=()"
+                ));
+    }
+
+    @Test
+    void allowsOnlyTheConfiguredCorsOrigin() throws Exception {
+        mockMvc.perform(options("/api/services")
+                        .header("Origin", "https://dashboard.example")
+                        .header("Access-Control-Request-Method", "GET"))
+                .andExpect(status().isOk())
+                .andExpect(header().string(
+                        "Access-Control-Allow-Origin",
+                        "https://dashboard.example"
+                ));
+
+        mockMvc.perform(options("/api/services")
+                        .header("Origin", "http://localhost:3000")
+                        .header("Access-Control-Request-Method", "GET"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void demoEndpointsAreUnavailableByDefault() throws Exception {
+        mockMvc.perform(get("/api/mock/healthy"))
+                .andExpect(status().isNotFound());
     }
 
     @Test

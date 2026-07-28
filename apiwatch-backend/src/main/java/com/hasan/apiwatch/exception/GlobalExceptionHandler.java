@@ -7,6 +7,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.time.Instant;
 import java.util.LinkedHashMap;
@@ -21,6 +22,14 @@ public class GlobalExceptionHandler {
             HttpServletRequest request
     ) {
         return error(HttpStatus.NOT_FOUND, exception.getMessage(), request, Map.of());
+    }
+
+    @ExceptionHandler(NoResourceFoundException.class)
+    ResponseEntity<ApiErrorResponse> handleMissingRoute(
+            NoResourceFoundException exception,
+            HttpServletRequest request
+    ) {
+        return error(HttpStatus.NOT_FOUND, "Resource was not found", request, Map.of());
     }
 
     @ExceptionHandler(BadRequestException.class)

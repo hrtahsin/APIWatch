@@ -14,6 +14,7 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter.ReferrerPolicy;
 
 import java.time.Instant;
 import java.util.Map;
@@ -36,6 +37,16 @@ public class SecurityConfig {
                 .cors(Customizer.withDefaults())
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+                )
+                .headers(headers -> headers
+                        .contentSecurityPolicy(csp ->
+                                csp.policyDirectives("default-src 'none'; frame-ancestors 'none'")
+                        )
+                        .frameOptions(frame -> frame.deny())
+                        .referrerPolicy(referrer -> referrer.policy(ReferrerPolicy.NO_REFERRER))
+                        .permissionsPolicyHeader(permissions ->
+                                permissions.policy("camera=(), microphone=(), geolocation=()")
+                        )
                 )
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
