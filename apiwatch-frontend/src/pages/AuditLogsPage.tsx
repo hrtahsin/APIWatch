@@ -14,6 +14,7 @@ const actionLabels: Record<AuditAction, string> = {
   SERVICE_RESUMED: 'Service resumed',
   INCIDENT_RESOLVED: 'Incident resolved',
   NOTIFICATION_SETTINGS_UPDATED: 'Notification settings updated',
+  NOTIFICATION_DELIVERY_RETRIED: 'Notification delivery retried',
 }
 
 export function AuditLogsPage() {
