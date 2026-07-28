@@ -20,6 +20,7 @@ public record ServiceResponse(
         int expectedStatusMin,
         int expectedStatusMax,
         int timeoutMs,
+        int slowThresholdMs,
         int checkIntervalSeconds,
         String responseBodyContains,
         int failureThreshold,

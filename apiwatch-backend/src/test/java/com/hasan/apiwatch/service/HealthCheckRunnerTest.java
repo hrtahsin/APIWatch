@@ -1,13 +1,12 @@
 package com.hasan.apiwatch.service;
 
-import com.hasan.apiwatch.entity.HealthCheck;
+import com.hasan.apiwatch.dto.HealthCheckResponse;
 import com.hasan.apiwatch.entity.MonitoredService;
 import com.hasan.apiwatch.enums.FailureType;
 import com.hasan.apiwatch.enums.HealthStatus;
 import com.hasan.apiwatch.exception.CheckAlreadyRunningException;
 import com.hasan.apiwatch.exception.ServiceRateLimitedException;
 import com.hasan.apiwatch.exception.UnsafeTargetException;
-import com.hasan.apiwatch.repository.HealthCheckRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -25,6 +24,7 @@ import java.util.concurrent.TimeoutException;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -32,9 +32,8 @@ class HealthCheckRunnerTest {
 
     private final HealthCheckRunner runner = new HealthCheckRunner(
             WebClient.builder(),
-            mock(HealthCheckRepository.class),
             mock(ServiceMonitorService.class),
-            mock(IncidentService.class),
+            persistenceService(),
             mock(ServiceCredentialService.class),
             mock(UrlSafetyService.class)
     );
@@ -85,13 +84,10 @@ class HealthCheckRunnerTest {
 
     @Test
     void rejectsConcurrentChecksForTheSameService() throws Exception {
-        HealthCheckRepository repository = mock(HealthCheckRepository.class);
-        when(repository.save(any(HealthCheck.class))).thenAnswer(invocation -> invocation.getArgument(0));
         HealthCheckRunner blockingRunner = new HealthCheckRunner(
                 WebClient.builder().exchangeFunction(request -> Mono.never()),
-                repository,
                 mock(ServiceMonitorService.class),
-                mock(IncidentService.class),
+                persistenceService(),
                 mock(ServiceCredentialService.class),
                 mock(UrlSafetyService.class)
         );
@@ -110,17 +106,14 @@ class HealthCheckRunnerTest {
 
     @Test
     void marksCheckDownWhenResponseBodyValidationFails() {
-        HealthCheckRepository repository = mock(HealthCheckRepository.class);
-        when(repository.save(any(HealthCheck.class))).thenAnswer(invocation -> invocation.getArgument(0));
         HealthCheckRunner validatingRunner = new HealthCheckRunner(
                 WebClient.builder().exchangeFunction(request -> Mono.just(
                         ClientResponse.create(HttpStatus.OK)
                                 .body("{\"status\":\"degraded\"}")
                                 .build()
                 )),
-                repository,
                 mock(ServiceMonitorService.class),
-                mock(IncidentService.class),
+                persistenceService(),
                 mock(ServiceCredentialService.class),
                 mock(UrlSafetyService.class)
         );
@@ -143,9 +136,34 @@ class HealthCheckRunnerTest {
         service.setExpectedStatusMin(200);
         service.setExpectedStatusMax(299);
         service.setTimeoutMs(2000);
+        service.setSlowThresholdMs(2000);
         service.setCheckIntervalSeconds(60);
         service.setFailureThreshold(3);
         service.setActive(true);
         return service;
+    }
+
+    private static HealthCheckPersistenceService persistenceService() {
+        HealthCheckPersistenceService persistenceService =
+                mock(HealthCheckPersistenceService.class);
+        when(persistenceService.persist(anyLong(), any(HealthCheckResult.class)))
+                .thenAnswer(invocation -> {
+                    Long serviceId = invocation.getArgument(0);
+                    HealthCheckResult result = invocation.getArgument(1);
+                    return new HealthCheckResponse(
+                            1L,
+                            serviceId,
+                            result.status(),
+                            result.httpStatusCode(),
+                            result.responseTimeMs(),
+                            result.failureType(),
+                            result.errorMessage(),
+                            result.retryAfterSeconds(),
+                            result.rateLimitRemaining(),
+                            result.rateLimitResetAt(),
+                            Instant.now()
+                    );
+                });
+        return persistenceService;
     }
 }

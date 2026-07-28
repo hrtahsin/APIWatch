@@ -26,6 +26,7 @@ public record CreateServiceRequest(
         @Min(100) @Max(599) Integer expectedStatusMin,
         @Min(100) @Max(599) Integer expectedStatusMax,
         @Min(100) @Max(120_000) Integer timeoutMs,
+        @Min(1) @Max(120_000) Integer slowThresholdMs,
         @Min(10) @Max(86_400) Integer checkIntervalSeconds,
         @Size(max = 500) String responseBodyContains,
         @Min(1) @Max(20) Integer failureThreshold,

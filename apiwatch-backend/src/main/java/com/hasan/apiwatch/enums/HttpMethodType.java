@@ -1,5 +1,6 @@
 package com.hasan.apiwatch.enums;
 
 public enum HttpMethodType {
-    GET
+    GET,
+    HEAD
 }

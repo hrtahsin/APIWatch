@@ -54,6 +54,9 @@ public class MonitoredService {
     @Column(name = "timeout_ms", nullable = false)
     private int timeoutMs = 2000;
 
+    @Column(name = "slow_threshold_ms", nullable = false)
+    private int slowThresholdMs = 2000;
+
     @Column(name = "check_interval_seconds", nullable = false)
     private int checkIntervalSeconds = 60;
 
@@ -191,6 +194,14 @@ public class MonitoredService {
 
     public void setTimeoutMs(int timeoutMs) {
         this.timeoutMs = timeoutMs;
+    }
+
+    public int getSlowThresholdMs() {
+        return slowThresholdMs;
+    }
+
+    public void setSlowThresholdMs(int slowThresholdMs) {
+        this.slowThresholdMs = slowThresholdMs;
     }
 
     public int getCheckIntervalSeconds() {
