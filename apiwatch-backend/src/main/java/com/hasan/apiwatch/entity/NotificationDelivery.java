@@ -62,6 +62,18 @@ public class NotificationDelivery {
     @Column(name = "attempt_count", nullable = false)
     private int attemptCount;
 
+    @Column(name = "event_key", nullable = false, length = 200)
+    private String eventKey;
+
+    @Column(name = "claimed_by", length = 160)
+    private String claimedBy;
+
+    @Column(name = "claimed_until")
+    private Instant claimedUntil;
+
+    @Column(name = "last_attempt_at")
+    private Instant lastAttemptAt;
+
     @Column(name = "attempted_at", nullable = false, updatable = false)
     private Instant attemptedAt;
 
@@ -173,6 +185,38 @@ public class NotificationDelivery {
 
     public void setAttemptCount(int attemptCount) {
         this.attemptCount = attemptCount;
+    }
+
+    public String getEventKey() {
+        return eventKey;
+    }
+
+    public void setEventKey(String eventKey) {
+        this.eventKey = eventKey;
+    }
+
+    public String getClaimedBy() {
+        return claimedBy;
+    }
+
+    public void setClaimedBy(String claimedBy) {
+        this.claimedBy = claimedBy;
+    }
+
+    public Instant getClaimedUntil() {
+        return claimedUntil;
+    }
+
+    public void setClaimedUntil(Instant claimedUntil) {
+        this.claimedUntil = claimedUntil;
+    }
+
+    public Instant getLastAttemptAt() {
+        return lastAttemptAt;
+    }
+
+    public void setLastAttemptAt(Instant lastAttemptAt) {
+        this.lastAttemptAt = lastAttemptAt;
     }
 
     public Instant getAttemptedAt() {

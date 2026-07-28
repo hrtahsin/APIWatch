@@ -21,7 +21,8 @@ Operations teams need a fast answer to four questions: what is failing, when it 
 - Independent request timeout, slow-response threshold, and failure threshold
 - Automatic incident creation after consecutive failures
 - Automatic and manual incident resolution
-- Encrypted incident webhook configuration with delivery cooldowns
+- Encrypted notification configuration with delivery cooldowns
+- Replica-safe notification claims, idempotency keys, retry backoff, and crash recovery
 - Notifications for incident open and resolution events
 - HTTP Basic application authentication with administrator and viewer roles
 - SSRF protection for monitored URLs and notification webhooks
@@ -201,6 +202,7 @@ Useful endpoints:
 | `GET` | `/api/notification-settings` | Get masked webhook configuration |
 | `PUT` | `/api/notification-settings` | Configure webhook delivery and cooldown |
 | `GET` | `/api/notification-settings/deliveries` | Review recent delivery attempts |
+| `POST` | `/api/notification-settings/deliveries/{id}/retry` | Requeue a failed delivery |
 | `GET` | `/api/audit-logs?page=0&size=20` | Review admin audit events |
 | `GET` | `/api/dashboard/summary` | Get platform summary metrics |
 
@@ -244,6 +246,13 @@ HEAD checks validate status and latency only.
 Webhook URLs are encrypted with `APIWATCH_ENCRYPTION_KEY` and never returned by
 the API. Delivery attempts record success, failure, HTTP status, and cooldown
 suppression for operational review.
+
+Notification workers atomically claim pending deliveries before contacting a
+provider. Expired claims are recovered automatically after a worker restart.
+Retryable timeouts, rate limits, and server errors use bounded exponential
+backoff with jitter, while permanent client errors fail immediately. Configure
+`APIWATCH_NOTIFICATIONS_CLAIM_SECONDS` and an optional stable
+`APIWATCH_NOTIFICATIONS_INSTANCE_ID` when running multiple backend replicas.
 
 ## Security
 

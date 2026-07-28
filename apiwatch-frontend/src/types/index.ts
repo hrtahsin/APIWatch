@@ -5,6 +5,7 @@ export type NotificationEventType = 'INCIDENT_OPENED' | 'INCIDENT_RESOLVED'
 export type NotificationProvider = 'WEBHOOK' | 'SLACK' | 'DISCORD' | 'EMAIL' | 'PAGERDUTY' | 'OPSGENIE'
 export type NotificationDeliveryStatus =
   | 'PENDING'
+  | 'PROCESSING'
   | 'SENT'
   | 'FAILED'
   | 'SKIPPED_COOLDOWN'
@@ -18,6 +19,7 @@ export type AuditAction =
   | 'SERVICE_RESUMED'
   | 'INCIDENT_RESOLVED'
   | 'NOTIFICATION_SETTINGS_UPDATED'
+  | 'NOTIFICATION_DELIVERY_RETRIED'
 export type FailureType =
   | 'HTTP_STATUS'
   | 'RESPONSE_VALIDATION'
@@ -182,6 +184,7 @@ export interface NotificationDelivery {
   errorMessage: string | null
   attemptCount: number
   nextAttemptAt: string | null
+  lastAttemptAt: string | null
   attemptedAt: string
 }
 
