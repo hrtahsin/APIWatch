@@ -57,10 +57,23 @@ services:
       APIWATCH_BLOCK_PRIVATE_TARGETS: ${APIWATCH_BLOCK_PRIVATE_TARGETS:-true}
       APIWATCH_PRIVATE_TARGET_ALLOWLIST: ${APIWATCH_PRIVATE_TARGET_ALLOWLIST:-backend}
       APIWATCH_ALLOW_LOCALHOST_CORS: ${APIWATCH_ALLOW_LOCALHOST_CORS:-false}
+      APIWATCH_PROMETHEUS_ENABLED: ${APIWATCH_PROMETHEUS_ENABLED:-true}
       APIWATCH_DEMO_DATA_ENABLED: ${APIWATCH_DEMO_DATA_ENABLED:-true}
       APIWATCH_DEMO_BASE_URL: ${APIWATCH_DEMO_BASE_URL:-http://backend:8080}
     ports:
       - "${APIWATCH_BIND_ADDRESS:-127.0.0.1}:8080:8080"
+    healthcheck:
+      test:
+        - CMD
+        - curl
+        - --fail
+        - --silent
+        - --show-error
+        - http://127.0.0.1:8080/actuator/health/readiness
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
 
   frontend:
     build:
@@ -79,9 +92,22 @@ services:
     tmpfs:
       - /tmp:rw,noexec,nosuid,size=16m
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     ports:
       - "${APIWATCH_BIND_ADDRESS:-127.0.0.1}:5173:8080"
+    healthcheck:
+      test:
+        - CMD
+        - curl
+        - --fail
+        - --silent
+        - --show-error
+        - http://127.0.0.1:8080/
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
 volumes:
   apiwatch-postgres-data:
