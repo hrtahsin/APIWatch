@@ -373,7 +373,13 @@ cd apiwatch-frontend
 npm test
 npm run lint
 npm run build
+npx playwright install chromium
+npm run test:e2e
 ```
+
+The Playwright acceptance suite starts the frontend in isolated demo mode. It
+checks administrator navigation, viewer route enforcement, and WCAG A/AA
+serious-or-critical violations on the login and core operational screens.
 
 ## CI/CD
 
@@ -385,6 +391,7 @@ Pipeline jobs:
 - Backend: sets up Java 21 and runs `mvn -B clean verify`
 - Dependency review: blocks newly introduced high-severity vulnerabilities
 - Frontend: audits all dependencies, then runs lint, tests, and build
+- Browser acceptance: runs Chromium user journeys and accessibility checks
 - Docker: builds images with SBOM and provenance after tests pass
 - CD: publishes branch, immutable commit, and semantic-version image tags
 - CodeQL: analyzes Java, JavaScript, and TypeScript on pull requests, `main`,
