@@ -68,6 +68,7 @@ apiwatch-backend/   Spring Boot API, scheduler, migrations, and tests
 apiwatch-frontend/  React dashboard
 .github/workflows/  Backend and frontend CI
 docker-compose.yml  PostgreSQL, backend, and frontend
+docs/operations-runbook.md  Deployment, backup, restore, and rollback
 ```
 
 ## Quick Start With Docker
@@ -369,11 +370,15 @@ pushes to `main`, and version tags such as `v1.0.0`.
 Pipeline jobs:
 
 - Backend: sets up Java 21 and runs `mvn -B clean verify`
-- Frontend: sets up Node.js 22, runs `npm ci`, `npm run lint`, `npm test`, and `npm run build`
-- Docker: builds backend and frontend Docker images after tests pass
-- CD: publishes images to GitHub Container Registry on pushes to `main` and tags
+- Dependency review: blocks newly introduced high-severity vulnerabilities
+- Frontend: audits production dependencies, then runs lint, tests, and build
+- Docker: builds images with SBOM and provenance after tests pass
+- CD: publishes branch, immutable commit, and semantic-version image tags
 
 Published image names:
 
 - `ghcr.io/<owner>/apiwatch-backend`
 - `ghcr.io/<owner>/apiwatch-frontend`
+
+See [the operations runbook](docs/operations-runbook.md) for immutable-image
+deployment, verified backups, destructive-restore safeguards, and rollback.
