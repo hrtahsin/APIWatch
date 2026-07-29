@@ -6,6 +6,7 @@ import com.hasan.apiwatch.repository.HealthCheckRepository;
 import com.hasan.apiwatch.repository.MonitoredServiceRepository;
 import com.hasan.apiwatch.service.HealthCheckRunner;
 import com.hasan.apiwatch.service.MonitoringLeaseService;
+import com.hasan.apiwatch.service.OperationalMetrics;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.task.TaskRejectedException;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -26,12 +27,14 @@ class MonitorSchedulerTest {
     private final HealthCheckRepository healthCheckRepository = mock(HealthCheckRepository.class);
     private final HealthCheckRunner healthCheckRunner = mock(HealthCheckRunner.class);
     private final MonitoringLeaseService monitoringLeaseService = mock(MonitoringLeaseService.class);
+    private final OperationalMetrics operationalMetrics = mock(OperationalMetrics.class);
     private final MonitorScheduler scheduler = new MonitorScheduler(
             serviceRepository,
             healthCheckRepository,
             healthCheckRunner,
             monitoringLeaseService,
-            Runnable::run
+            Runnable::run,
+            operationalMetrics
     );
 
     @Test
@@ -95,7 +98,8 @@ class MonitorSchedulerTest {
                 monitoringLeaseService,
                 task -> {
                     throw new TaskRejectedException("queue full");
-                }
+                },
+                operationalMetrics
         );
         MonitoredService service = service(11L, 60);
         when(serviceRepository.findAllByActiveTrueOrderByNameAsc()).thenReturn(List.of(service));

@@ -12,6 +12,8 @@ public interface MonitoredServiceRepository extends JpaRepository<MonitoredServi
 
     List<MonitoredService> findAllByOrderByNameAsc();
 
+    long countByActiveTrue();
+
     boolean existsByNameIgnoreCase(String name);
 
     boolean existsByNameIgnoreCaseAndIdNot(String name, Long id);

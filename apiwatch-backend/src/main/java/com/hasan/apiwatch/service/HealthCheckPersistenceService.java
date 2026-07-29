@@ -15,15 +15,18 @@ public class HealthCheckPersistenceService {
     private final MonitoredServiceRepository serviceRepository;
     private final HealthCheckRepository healthCheckRepository;
     private final IncidentService incidentService;
+    private final OperationalMetrics operationalMetrics;
 
     public HealthCheckPersistenceService(
             MonitoredServiceRepository serviceRepository,
             HealthCheckRepository healthCheckRepository,
-            IncidentService incidentService
+            IncidentService incidentService,
+            OperationalMetrics operationalMetrics
     ) {
         this.serviceRepository = serviceRepository;
         this.healthCheckRepository = healthCheckRepository;
         this.incidentService = incidentService;
+        this.operationalMetrics = operationalMetrics;
     }
 
     @Transactional
@@ -50,7 +53,9 @@ public class HealthCheckPersistenceService {
         check.setRateLimitResetAt(result.rateLimitResetAt());
         HealthCheck saved = healthCheckRepository.save(check);
         incidentService.evaluate(service, saved);
-        return toResponse(saved);
+        HealthCheckResponse response = toResponse(saved);
+        operationalMetrics.recordHealthCheck(response);
+        return response;
     }
 
     private HealthCheckResponse toResponse(HealthCheck check) {

@@ -5,6 +5,7 @@ import com.hasan.apiwatch.repository.HealthCheckRepository;
 import com.hasan.apiwatch.repository.MonitoredServiceRepository;
 import com.hasan.apiwatch.service.HealthCheckRunner;
 import com.hasan.apiwatch.service.MonitoringLeaseService;
+import com.hasan.apiwatch.service.OperationalMetrics;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -33,19 +34,22 @@ public class MonitorScheduler {
     private final HealthCheckRunner healthCheckRunner;
     private final MonitoringLeaseService monitoringLeaseService;
     private final TaskExecutor monitoringTaskExecutor;
+    private final OperationalMetrics operationalMetrics;
 
     public MonitorScheduler(
             MonitoredServiceRepository serviceRepository,
             HealthCheckRepository healthCheckRepository,
             HealthCheckRunner healthCheckRunner,
             MonitoringLeaseService monitoringLeaseService,
-            @Qualifier("monitoringTaskExecutor") TaskExecutor monitoringTaskExecutor
+            @Qualifier("monitoringTaskExecutor") TaskExecutor monitoringTaskExecutor,
+            OperationalMetrics operationalMetrics
     ) {
         this.serviceRepository = serviceRepository;
         this.healthCheckRepository = healthCheckRepository;
         this.healthCheckRunner = healthCheckRunner;
         this.monitoringLeaseService = monitoringLeaseService;
         this.monitoringTaskExecutor = monitoringTaskExecutor;
+        this.operationalMetrics = operationalMetrics;
     }
 
     @Scheduled(
@@ -90,6 +94,7 @@ public class MonitorScheduler {
         }
         log.info("Finished scheduled monitoring dispatch: submitted={}, skipped={}",
                 submitted, skipped);
+        operationalMetrics.recordSchedulerDispatch(submitted, skipped);
     }
 
     private boolean tryAcquireLease(MonitoredService service) {
