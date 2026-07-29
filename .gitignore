@@ -21,3 +21,4 @@ dist/
 # Logs and local data
 *.log
 apiwatch-postgres-data/
+backups/

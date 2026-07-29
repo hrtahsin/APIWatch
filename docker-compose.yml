@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgres:16-alpine@sha256:16bc17c64a573ef34162af9298258d1aec548232985b33ed7b1eac33ba35c229
     container_name: apiwatch-postgres
     restart: unless-stopped
     environment:
@@ -18,6 +18,7 @@ services:
       retries: 10
 
   backend:
+    image: ${APIWATCH_BACKEND_IMAGE:-apiwatch-backend:local}
     build:
       context: ./apiwatch-backend
     container_name: apiwatch-backend
@@ -41,6 +42,10 @@ services:
       APIWATCH_SCHEDULER_ENABLED: ${APIWATCH_SCHEDULER_ENABLED:-true}
       APIWATCH_SCHEDULER_INTERVAL_MS: ${APIWATCH_SCHEDULER_INTERVAL_MS:-5000}
       APIWATCH_SCHEDULER_INITIAL_DELAY_MS: ${APIWATCH_SCHEDULER_INITIAL_DELAY_MS:-15000}
+      APIWATCH_SCHEDULER_WORKER_POOL_SIZE: ${APIWATCH_SCHEDULER_WORKER_POOL_SIZE:-4}
+      APIWATCH_SCHEDULER_QUEUE_CAPACITY: ${APIWATCH_SCHEDULER_QUEUE_CAPACITY:-100}
+      APIWATCH_SCHEDULER_LEASE_SECONDS: ${APIWATCH_SCHEDULER_LEASE_SECONDS:-120}
+      APIWATCH_SCHEDULER_INSTANCE_ID: ${APIWATCH_SCHEDULER_INSTANCE_ID:-}
       APIWATCH_NOTIFICATIONS_CLAIM_SECONDS: ${APIWATCH_NOTIFICATIONS_CLAIM_SECONDS:-30}
       APIWATCH_NOTIFICATIONS_INSTANCE_ID: ${APIWATCH_NOTIFICATIONS_INSTANCE_ID:-}
       APIWATCH_RETENTION_ENABLED: ${APIWATCH_RETENTION_ENABLED:-true}
@@ -76,10 +81,11 @@ services:
       start_period: 30s
 
   frontend:
+    image: ${APIWATCH_FRONTEND_IMAGE:-apiwatch-frontend:local}
     build:
       context: ./apiwatch-frontend
       args:
-        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8080/api}
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api}
         VITE_DEMO_MODE: ${VITE_DEMO_MODE:-false}
     container_name: apiwatch-frontend
     restart: unless-stopped
