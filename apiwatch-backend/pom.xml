@@ -13,7 +13,7 @@
 
     <groupId>com.hasan</groupId>
     <artifactId>apiwatch-backend</artifactId>
-    <version>0.0.1-SNAPSHOT</version>
+    <version>0.1.0-SNAPSHOT</version>
     <name>APIWatch Backend</name>
     <description>API monitoring and incident management platform</description>
 
