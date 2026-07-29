@@ -4,38 +4,71 @@ updates:
     directory: /apiwatch-backend
     schedule:
       interval: weekly
+    open-pull-requests-limit: 5
     groups:
       maven-minor-and-patch:
         update-types:
           - minor
           - patch
+    ignore:
+      - dependency-name: "*"
+        update-types:
+          - version-update:semver-major
 
   - package-ecosystem: npm
     directory: /apiwatch-frontend
     schedule:
       interval: weekly
+    open-pull-requests-limit: 5
     groups:
       npm-minor-and-patch:
         update-types:
           - minor
           - patch
+    ignore:
+      - dependency-name: "*"
+        update-types:
+          - version-update:semver-major
 
   - package-ecosystem: docker
     directory: /apiwatch-backend
     schedule:
       interval: weekly
+    open-pull-requests-limit: 3
+    ignore:
+      # Build-image upgrades are planned separately so the Java variant cannot
+      # drift from the supported Java 21 runtime.
+      - dependency-name: maven
+      - dependency-name: eclipse-temurin
+        update-types:
+          - version-update:semver-major
 
   - package-ecosystem: docker
     directory: /apiwatch-frontend
     schedule:
       interval: weekly
+    open-pull-requests-limit: 3
+    ignore:
+      - dependency-name: node
+        update-types:
+          - version-update:semver-major
 
   - package-ecosystem: docker
     directory: /
     schedule:
       interval: weekly
+    open-pull-requests-limit: 3
+    ignore:
+      - dependency-name: postgres
+        update-types:
+          - version-update:semver-major
 
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
+    open-pull-requests-limit: 5
+    ignore:
+      - dependency-name: "*"
+        update-types:
+          - version-update:semver-major
