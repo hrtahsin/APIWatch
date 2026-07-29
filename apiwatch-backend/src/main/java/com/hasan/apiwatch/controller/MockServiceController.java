@@ -1,5 +1,6 @@
 package com.hasan.apiwatch.controller;
 
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -11,6 +12,7 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/mock")
+@ConditionalOnProperty(name = "apiwatch.demo-data.enabled", havingValue = "true")
 public class MockServiceController {
 
     @GetMapping("/healthy")

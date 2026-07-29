@@ -1,0 +1,6 @@
+apiwatch:
+  security:
+    allow-localhost-cors: false
+    require-secure-bootstrap: true
+  demo-data:
+    enabled: false

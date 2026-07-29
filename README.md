@@ -101,6 +101,11 @@ the next application start.
 
 Compose enables demo seeding by default. It registers healthy, slow, failing, GitHub, and JSONPlaceholder services. The scheduler starts checking them after 15 seconds.
 
+The Compose ports bind to `127.0.0.1` by default. This keeps PostgreSQL and the
+unencrypted HTTP endpoints off external network interfaces. Use a local TLS
+reverse proxy for deployed instances; only change `APIWATCH_BIND_ADDRESS` when
+the surrounding network controls are intentional.
+
 Scheduled checks are dispatched to a bounded worker pool. Tune
 `APIWATCH_SCHEDULER_WORKER_POOL_SIZE`, `APIWATCH_SCHEDULER_QUEUE_CAPACITY`,
 `APIWATCH_SCHEDULER_LEASE_SECONDS`, and optional
@@ -278,6 +283,27 @@ All `/api` endpoints require HTTP Basic authentication except local mock
 endpoints. `VIEWER` accounts can read monitoring data. `ADMIN` accounts can
 create, edit, delete, check, pause, resolve, and configure notifications.
 Deploy behind HTTPS because Basic credentials accompany every API request.
+
+For a deployed instance, enable the fail-fast production profile:
+
+```env
+SPRING_PROFILES_ACTIVE=production
+APIWATCH_FRONTEND_ORIGIN=https://apiwatch.example.com
+APIWATCH_DEMO_DATA_ENABLED=false
+APIWATCH_ALLOW_LOCALHOST_CORS=false
+```
+
+The production profile refuses to start with the documented development
+encryption key, malformed encryption keys, placeholder or short bootstrap
+passwords, shared administrator/viewer identities, a non-HTTPS frontend origin,
+demo endpoints, or wildcard localhost CORS. Set distinct passwords of at least
+12 characters and generate `APIWATCH_ENCRYPTION_KEY` with
+`openssl rand -base64 32`.
+
+The backend and frontend emit restrictive browser security headers. The
+frontend container and backend container run without root privileges or Linux
+capabilities, use a read-only filesystem, and enable the no-new-privileges
+runtime control.
 
 Outbound monitored URLs and webhooks are checked when saved and immediately
 before use. Loopback, private, link-local, multicast, carrier-grade NAT, and

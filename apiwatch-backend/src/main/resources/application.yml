@@ -55,6 +55,8 @@ apiwatch:
   security:
     block-private-targets: ${APIWATCH_BLOCK_PRIVATE_TARGETS:true}
     private-target-allowlist: ${APIWATCH_PRIVATE_TARGET_ALLOWLIST:}
+    allow-localhost-cors: ${APIWATCH_ALLOW_LOCALHOST_CORS:false}
+    require-secure-bootstrap: ${APIWATCH_REQUIRE_SECURE_BOOTSTRAP:false}
   demo-data:
     enabled: ${APIWATCH_DEMO_DATA_ENABLED:false}
     base-url: ${APIWATCH_DEMO_BASE_URL:http://localhost:8080}
