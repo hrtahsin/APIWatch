@@ -53,16 +53,6 @@ updates:
         update-types:
           - version-update:semver-major
 
-  - package-ecosystem: docker
-    directory: /
-    schedule:
-      interval: weekly
-    open-pull-requests-limit: 3
-    ignore:
-      - dependency-name: postgres
-        update-types:
-          - version-update:semver-major
-
   - package-ecosystem: github-actions
     directory: /
     schedule:
