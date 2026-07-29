@@ -18,7 +18,7 @@ const allowlistPath = path.join(
 const allowlist = JSON.parse(readFileSync(allowlistPath, "utf8"));
 const audit = spawnSync(
   "npm",
-  ["audit", "--omit=dev", "--audit-level=high", "--json"],
+  ["audit", "--audit-level=high", "--json"],
   {
     cwd: frontendDirectory,
     encoding: "utf8",
@@ -110,4 +110,4 @@ if (audit.status !== 0 && allowedFindings.length === 0) {
   process.exit(1);
 }
 
-console.log("Production dependency audit passed.");
+console.log("Dependency audit passed.");

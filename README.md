@@ -371,9 +371,11 @@ Pipeline jobs:
 
 - Backend: sets up Java 21 and runs `mvn -B clean verify`
 - Dependency review: blocks newly introduced high-severity vulnerabilities
-- Frontend: audits production dependencies, then runs lint, tests, and build
+- Frontend: audits all dependencies, then runs lint, tests, and build
 - Docker: builds images with SBOM and provenance after tests pass
 - CD: publishes branch, immutable commit, and semantic-version image tags
+- CodeQL: analyzes Java, JavaScript, and TypeScript on pull requests, `main`,
+  and a weekly schedule
 
 Published image names:
 

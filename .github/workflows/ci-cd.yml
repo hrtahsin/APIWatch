@@ -85,7 +85,7 @@ jobs:
         working-directory: apiwatch-frontend
         run: npm ci
 
-      - name: Audit production dependencies
+      - name: Audit dependencies
         run: node scripts/check-npm-audit.mjs
 
       - name: Lint frontend
