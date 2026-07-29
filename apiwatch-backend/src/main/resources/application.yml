@@ -19,6 +19,37 @@ spring:
 server:
   port: ${SERVER_PORT:8080}
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: never
+      group:
+        liveness:
+          include: livenessState
+        readiness:
+          include: readinessState,db
+  health:
+    livenessstate:
+      enabled: true
+    readinessstate:
+      enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+  prometheus:
+    metrics:
+      export:
+        enabled: ${APIWATCH_PROMETHEUS_ENABLED:true}
+
 apiwatch:
   scheduler:
     enabled: ${APIWATCH_SCHEDULER_ENABLED:true}
@@ -62,5 +93,7 @@ apiwatch:
     base-url: ${APIWATCH_DEMO_BASE_URL:http://localhost:8080}
 
 logging:
+  pattern:
+    level: "%5p [requestId:%X{requestId:-}]"
   level:
     com.hasan.apiwatch: INFO

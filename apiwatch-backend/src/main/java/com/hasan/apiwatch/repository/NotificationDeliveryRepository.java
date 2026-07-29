@@ -50,6 +50,8 @@ public interface NotificationDeliveryRepository
 
     boolean existsByEventKey(String eventKey);
 
+    long countByStatus(NotificationDeliveryStatus status);
+
     long deleteByAttemptedAtBefore(Instant cutoff);
 
     long deleteByServiceId(Long serviceId);

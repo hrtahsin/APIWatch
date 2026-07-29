@@ -34,6 +34,7 @@ Operations teams need a fast answer to four questions: what is failing, when it 
 - Responsive React dashboard with charts and filtering
 - Docker Compose full-stack environment
 - Backend and frontend GitHub Actions workflows
+- Liveness, readiness, authenticated Prometheus metrics, and request correlation IDs
 - Opt-in demo data and local mock endpoints
 
 ## Tech Stack
@@ -156,6 +157,36 @@ mvn verify -Ppostgres-it
 ```
 
 GitHub Actions runs both suites on every pull request.
+
+## Operational Observability
+
+APIWatch exposes non-sensitive health probes without authentication:
+
+- `GET /actuator/health/liveness` reports whether the backend process can run.
+- `GET /actuator/health/readiness` reports whether the backend and database are
+  ready to receive traffic.
+
+Prometheus metrics require administrator authentication:
+
+```bash
+curl -u "$APIWATCH_ADMIN_USERNAME:$APIWATCH_ADMIN_PASSWORD" \
+  http://localhost:8080/actuator/prometheus
+```
+
+The metrics include HTTP server telemetry plus bounded-cardinality APIWatch
+signals for health-check outcomes and duration, scheduler dispatch outcomes,
+active services, unresolved incidents, and pending, processing, or failed
+notification deliveries. Set `APIWATCH_PROMETHEUS_ENABLED=false` to disable the
+Prometheus exporter.
+
+Every HTTP response includes `X-Request-Id`. APIWatch accepts a caller-provided
+identifier containing up to 128 letters, numbers, dots, underscores, or hyphens;
+otherwise it generates a UUID. The same identifier is attached to backend log
+entries produced while the request is handled.
+
+Compose health checks use the readiness probe for the backend and start the
+frontend only after the backend is healthy. `docker compose ps` reports the
+health of all three services.
 
 Run the frontend in another terminal:
 
