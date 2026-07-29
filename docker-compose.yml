@@ -8,7 +8,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-apiwatch}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-apiwatch}
     ports:
-      - "5432:5432"
+      - "${APIWATCH_BIND_ADDRESS:-127.0.0.1}:5432:5432"
     volumes:
       - apiwatch-postgres-data:/var/lib/postgresql/data
     healthcheck:
@@ -22,10 +22,19 @@ services:
       context: ./apiwatch-backend
     container_name: apiwatch-backend
     restart: unless-stopped
+    init: true
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
     depends_on:
       postgres:
         condition: service_healthy
     environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-}
       SPRING_DATASOURCE_URL: ${SPRING_DATASOURCE_URL:-jdbc:postgresql://postgres:5432/apiwatch}
       SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME:-apiwatch}
       SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD:-apiwatch}
@@ -47,10 +56,11 @@ services:
       APIWATCH_VIEWER_PASSWORD: ${APIWATCH_VIEWER_PASSWORD:-viewer-change-me}
       APIWATCH_BLOCK_PRIVATE_TARGETS: ${APIWATCH_BLOCK_PRIVATE_TARGETS:-true}
       APIWATCH_PRIVATE_TARGET_ALLOWLIST: ${APIWATCH_PRIVATE_TARGET_ALLOWLIST:-backend}
+      APIWATCH_ALLOW_LOCALHOST_CORS: ${APIWATCH_ALLOW_LOCALHOST_CORS:-false}
       APIWATCH_DEMO_DATA_ENABLED: ${APIWATCH_DEMO_DATA_ENABLED:-true}
       APIWATCH_DEMO_BASE_URL: ${APIWATCH_DEMO_BASE_URL:-http://backend:8080}
     ports:
-      - "8080:8080"
+      - "${APIWATCH_BIND_ADDRESS:-127.0.0.1}:8080:8080"
 
   frontend:
     build:
@@ -60,10 +70,18 @@ services:
         VITE_DEMO_MODE: ${VITE_DEMO_MODE:-false}
     container_name: apiwatch-frontend
     restart: unless-stopped
+    init: true
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=16m
     depends_on:
       - backend
     ports:
-      - "5173:80"
+      - "${APIWATCH_BIND_ADDRESS:-127.0.0.1}:5173:8080"
 
 volumes:
   apiwatch-postgres-data:
