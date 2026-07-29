@@ -93,6 +93,7 @@ Open:
 
 - Dashboard: `http://localhost:5173`
 - REST API: `http://localhost:8080/api`
+- OpenAPI UI (administrator only): `http://localhost:8080/swagger-ui.html`
 - Healthy mock: `http://localhost:8080/api/mock/healthy`
 
 Sign in with the administrator or viewer credentials configured in `.env`.
@@ -204,6 +205,18 @@ VITE_DEMO_MODE=true
 ```
 
 ## API Examples
+
+The machine-readable OpenAPI contract and interactive documentation require
+administrator credentials:
+
+```bash
+curl -u "$APIWATCH_ADMIN_USERNAME:$APIWATCH_ADMIN_PASSWORD" \
+  http://localhost:8080/v3/api-docs
+```
+
+Set `APIWATCH_API_VERSION` to the deployed product version. Set
+`APIWATCH_OPENAPI_ENABLED=false` to remove both the contract endpoint and
+Swagger UI when documentation is published through another controlled channel.
 
 Register a service:
 
