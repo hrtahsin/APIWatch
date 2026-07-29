@@ -85,7 +85,7 @@ jobs:
         working-directory: apiwatch-frontend
         run: npm ci
 
-      - name: Audit production dependencies
+      - name: Audit dependencies
         run: node scripts/check-npm-audit.mjs
 
       - name: Lint frontend
@@ -100,6 +100,34 @@ jobs:
         working-directory: apiwatch-frontend
         run: npm run build
 
+  frontend-e2e:
+    name: Frontend browser acceptance
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apiwatch-frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: apiwatch-frontend
+        run: npm ci
+
+      - name: Install Chromium
+        working-directory: apiwatch-frontend
+        run: npx playwright install --with-deps chromium
+
+      - name: Run browser acceptance tests
+        working-directory: apiwatch-frontend
+        run: npm run test:e2e
+
   docker:
     name: Docker build and publish
     runs-on: ubuntu-latest
@@ -109,6 +137,7 @@ jobs:
     needs:
       - backend
       - frontend
+      - frontend-e2e
     strategy:
       fail-fast: false
       matrix:

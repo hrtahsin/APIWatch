@@ -31,23 +31,22 @@ export function IncidentsPage() {
     setTotalPages(response.totalPages)
   }, [filter, page])
 
-  const refresh = useCallback(async (showLoading = false) => {
-    if (showLoading) setLoading(true)
+  const refresh = useCallback(async () => {
     await load()
       .then(() => setError(null))
       .catch((loadError) => {
         setError(getApiErrorMessage(loadError, 'Unable to load incidents'))
       })
-      .finally(() => {
-        if (showLoading) setLoading(false)
-      })
   }, [load])
 
   useEffect(() => {
-    void refresh(true)
+    const initialLoad = window.setTimeout(() => {
+      void refresh().finally(() => setLoading(false))
+    }, 0)
+    return () => window.clearTimeout(initialLoad)
   }, [refresh])
 
-  useAutoRefresh(() => refresh(false))
+  useAutoRefresh(refresh)
 
   async function handleResolve(id: number) {
     try {

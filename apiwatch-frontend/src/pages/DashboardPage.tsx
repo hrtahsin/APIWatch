@@ -21,9 +21,8 @@ export function DashboardPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const load = useCallback(async (showLoading = false) => {
+  const load = useCallback(async () => {
     try {
-      if (showLoading) setLoading(true)
       const [summaryResponse, servicesResponse, incidentsResponse] = await Promise.all([
         getDashboardSummary(),
         getServices(),
@@ -38,16 +37,17 @@ export function DashboardPage() {
       setError(null)
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : 'Unable to load dashboard')
-    } finally {
-      if (showLoading) setLoading(false)
     }
   }, [])
 
   useEffect(() => {
-    void load(true)
+    const initialLoad = window.setTimeout(() => {
+      void load().finally(() => setLoading(false))
+    }, 0)
+    return () => window.clearTimeout(initialLoad)
   }, [load])
 
-  useAutoRefresh(() => load(false))
+  useAutoRefresh(load)
 
   const cards = useMemo(
     () =>

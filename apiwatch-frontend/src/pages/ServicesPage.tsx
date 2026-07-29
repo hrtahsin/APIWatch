@@ -26,8 +26,7 @@ export function ServicesPage() {
   const [updatingServiceId, setUpdatingServiceId] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  const load = useCallback(async (showLoading = false) => {
-    if (showLoading) setLoading(true)
+  const load = useCallback(async () => {
     const active = activeFilter === 'ALL' ? undefined : activeFilter === 'ACTIVE'
     await getServicesPage(page, pageSize, {
       query,
@@ -44,16 +43,13 @@ export function ServicesPage() {
       .catch((loadError) => {
         setError(getApiErrorMessage(loadError, 'Unable to load services'))
       })
-      .finally(() => {
-        if (showLoading) setLoading(false)
-      })
   }, [activeFilter, page, query, sortBy, sortDirection])
 
   useEffect(() => {
-    void load(true)
+    void load().finally(() => setLoading(false))
   }, [load])
 
-  useAutoRefresh(() => load(false))
+  useAutoRefresh(load)
 
   async function handleActiveChange(service: MonitoredService) {
     try {
@@ -63,7 +59,7 @@ export function ServicesPage() {
         current.map((item) => (item.id === updated.id ? updated : item)),
       )
       setError(null)
-      void load(false)
+      void load()
     } catch (updateError) {
       setError(getApiErrorMessage(updateError, 'Unable to update monitoring state'))
     } finally {

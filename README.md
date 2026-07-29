@@ -93,6 +93,7 @@ Open:
 
 - Dashboard: `http://localhost:5173`
 - REST API: `http://localhost:8080/api`
+- OpenAPI UI (administrator only): `http://localhost:8080/swagger-ui.html`
 - Healthy mock: `http://localhost:8080/api/mock/healthy`
 
 Sign in with the administrator or viewer credentials configured in `.env`.
@@ -204,6 +205,18 @@ VITE_DEMO_MODE=true
 ```
 
 ## API Examples
+
+The machine-readable OpenAPI contract and interactive documentation require
+administrator credentials:
+
+```bash
+curl -u "$APIWATCH_ADMIN_USERNAME:$APIWATCH_ADMIN_PASSWORD" \
+  http://localhost:8080/v3/api-docs
+```
+
+Set `APIWATCH_API_VERSION` to the deployed product version. Set
+`APIWATCH_OPENAPI_ENABLED=false` to remove both the contract endpoint and
+Swagger UI when documentation is published through another controlled channel.
 
 Register a service:
 
@@ -360,7 +373,13 @@ cd apiwatch-frontend
 npm test
 npm run lint
 npm run build
+npx playwright install chromium
+npm run test:e2e
 ```
+
+The Playwright acceptance suite starts the frontend in isolated demo mode. It
+checks administrator navigation, viewer route enforcement, and WCAG A/AA
+serious-or-critical violations on the login and core operational screens.
 
 ## CI/CD
 
@@ -371,9 +390,12 @@ Pipeline jobs:
 
 - Backend: sets up Java 21 and runs `mvn -B clean verify`
 - Dependency review: blocks newly introduced high-severity vulnerabilities
-- Frontend: audits production dependencies, then runs lint, tests, and build
+- Frontend: audits all dependencies, then runs lint, tests, and build
+- Browser acceptance: runs Chromium user journeys and accessibility checks
 - Docker: builds images with SBOM and provenance after tests pass
 - CD: publishes branch, immutable commit, and semantic-version image tags
+- CodeQL: analyzes Java, JavaScript, and TypeScript on pull requests, `main`,
+  and a weekly schedule
 
 Published image names:
 

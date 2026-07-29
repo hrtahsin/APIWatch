@@ -33,13 +33,15 @@ export function AuditLogsPage() {
   }, [page])
 
   useEffect(() => {
-    setLoading(true)
-    load()
-      .then(() => setError(null))
-      .catch((loadError) => {
-        setError(getApiErrorMessage(loadError, 'Unable to load audit logs'))
-      })
-      .finally(() => setLoading(false))
+    const initialLoad = window.setTimeout(() => {
+      void load()
+        .then(() => setError(null))
+        .catch((loadError) => {
+          setError(getApiErrorMessage(loadError, 'Unable to load audit logs'))
+        })
+        .finally(() => setLoading(false))
+    }, 0)
+    return () => window.clearTimeout(initialLoad)
   }, [load])
 
   return (

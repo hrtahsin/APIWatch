@@ -49,14 +49,14 @@ export function ServiceDetailPage() {
   const [checkTotalPages, setCheckTotalPages] = useState(0)
   const [incidents, setIncidents] = useState<Incident[]>([])
   const [metrics, setMetrics] = useState<ServiceMetrics | null>(null)
+  const [currentTime, setCurrentTime] = useState(0)
   const [loading, setLoading] = useState(true)
   const [running, setRunning] = useState(false)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const load = useCallback(async (showLoading = false, targetCheckPage = checkPage) => {
-    if (showLoading) setLoading(true)
+  const load = useCallback(async (targetCheckPage = checkPage) => {
     const [serviceResponse, checksResponse, incidentsResponse, metricsResponse] =
       await Promise.all([
         getService(serviceId),
@@ -70,20 +70,23 @@ export function ServiceDetailPage() {
     setCheckTotalPages(checksResponse.totalPages)
     setIncidents(incidentsResponse)
     setMetrics(metricsResponse)
-    if (showLoading) setLoading(false)
+    setCurrentTime(Date.now())
   }, [checkPage, serviceId])
 
   useEffect(() => {
-    load(true)
-      .then(() => setError(null))
-      .catch((loadError) => {
-        setError(getApiErrorMessage(loadError, 'Unable to load service'))
-        setLoading(false)
-      })
+    const initialLoad = window.setTimeout(() => {
+      void load()
+        .then(() => setError(null))
+        .catch((loadError) => {
+          setError(getApiErrorMessage(loadError, 'Unable to load service'))
+        })
+        .finally(() => setLoading(false))
+    }, 0)
+    return () => window.clearTimeout(initialLoad)
   }, [load])
 
   useAutoRefresh(() =>
-    load(false).catch((loadError) => {
+    load().catch((loadError) => {
       setError(getApiErrorMessage(loadError, 'Unable to load service'))
     }),
   )
@@ -93,7 +96,7 @@ export function ServiceDetailPage() {
       setRunning(true)
       await runCheck(serviceId)
       setCheckPage(0)
-      await load(false, 0)
+      await load(0)
       setError(null)
     } catch (runError) {
       setError(getApiErrorMessage(runError, 'Health check failed'))
@@ -120,7 +123,7 @@ export function ServiceDetailPage() {
   const rateLimitedUntil = service.rateLimitedUntil
     ? new Date(service.rateLimitedUntil)
     : null
-  const checksPaused = rateLimitedUntil !== null && rateLimitedUntil.getTime() > Date.now()
+  const checksPaused = rateLimitedUntil !== null && rateLimitedUntil.getTime() > currentTime
 
   return (
     <div className="detail-grid">

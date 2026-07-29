@@ -11,19 +11,19 @@ import { AuthContext } from './context'
 import type { AuthContextValue } from './context'
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const [hasStoredCredentials] = useState(hasApiCredentials)
   const [user, setUser] = useState<AuthUser | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(hasStoredCredentials)
 
   useEffect(() => {
-    if (!hasApiCredentials()) {
-      setLoading(false)
+    if (!hasStoredCredentials) {
       return
     }
     getCurrentUser()
       .then(setUser)
       .catch(() => clearApiCredentials())
       .finally(() => setLoading(false))
-  }, [])
+  }, [hasStoredCredentials])
 
   useEffect(() => {
     function handleUnauthorized() {
