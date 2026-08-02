@@ -40,6 +40,35 @@ test('administrator can navigate the operational workspace', async ({ page }) =>
   await expect(page.getByRole('heading', { name: 'Notification settings' })).toBeVisible()
 })
 
+test('administrator receives clear mutation feedback and guarded destructive actions', async ({ page }) => {
+  await signIn(page, 'feedback-admin')
+
+  await page.getByRole('link', { name: 'Services', exact: true }).click()
+  await page.getByRole('button', { name: 'Pause Payments API' }).click()
+  await expect(page.getByRole('status')).toContainText('Monitoring paused')
+
+  await page.goto('/services/1')
+  await page.getByRole('button', { name: 'Delete service' }).click()
+  const dialog = page.getByRole('alertdialog')
+  await expect(dialog).toBeVisible()
+  await expect(dialog.getByRole('button', { name: 'Cancel' })).toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect(dialog).toBeHidden()
+})
+
+test('service form reports field-level validation errors', async ({ page }) => {
+  await signIn(page, 'validation-admin')
+  await page.goto('/services/new')
+
+  await page.getByLabel('Expected status from').fill('500')
+  await page.getByLabel('Expected status through').fill('200')
+  await page.getByRole('button', { name: 'Save service' }).click()
+
+  await expect(page.getByRole('alert')).toContainText('Review the highlighted fields')
+  await expect(page.getByText('Minimum status cannot exceed the maximum.')).toBeVisible()
+  await expect(page.getByLabel('Expected status from')).toHaveAttribute('aria-invalid', 'true')
+})
+
 test('viewer remains read-only and cannot open administrator routes', async ({ page }) => {
   await signIn(page, 'acceptance-viewer')
 
@@ -70,4 +99,37 @@ test('critical user surfaces meet the automated accessibility gate', async ({ pa
   await page.getByRole('link', { name: 'Incidents', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'Incident timeline' })).toBeVisible()
   await expectNoSeriousAccessibilityViolations(page)
+
+  await page.goto('/settings')
+  await expect(page.getByRole('heading', { name: 'Notification settings' })).toBeVisible()
+  await expectNoSeriousAccessibilityViolations(page)
+
+  await page.goto('/services/new')
+  await expect(page.getByRole('heading', { name: 'Add a service' })).toBeVisible()
+  await expectNoSeriousAccessibilityViolations(page)
+})
+
+test('mobile navigation and data tables adapt without page overflow', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await signIn(page, 'mobile-admin')
+
+  const menuButton = page.getByRole('button', { name: 'Open menu' })
+  await expect(menuButton).toHaveAttribute('aria-expanded', 'false')
+  await menuButton.click()
+  await expect(menuButton).toHaveAttribute('aria-expanded', 'true')
+  await expect(page.getByRole('button', { name: 'Close menu' })).toBeFocused()
+
+  await page.getByRole('link', { name: 'Services', exact: true }).click()
+  await expect(
+    page.getByRole('heading', { name: 'Monitored services', exact: true }),
+  ).toBeVisible()
+
+  const layout = await page.evaluate(() => {
+    const table = document.querySelector('.mobile-card-table')
+    return {
+      pageOverflows: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+      tableOverflows: table ? table.scrollWidth > table.clientWidth : true,
+    }
+  })
+  expect(layout).toEqual({ pageOverflows: false, tableOverflows: false })
 })
