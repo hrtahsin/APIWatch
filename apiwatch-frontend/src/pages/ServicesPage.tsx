@@ -5,6 +5,9 @@ import { getApiErrorMessage, getServicesPage, setServiceActive } from '../api/cl
 import { useAuth } from '../auth/useAuth'
 import { Pagination } from '../components/Pagination'
 import { ServiceTable } from '../components/ServiceTable'
+import { FeedbackNotice } from '../components/FeedbackNotice'
+import { LoadingState } from '../components/LoadingState'
+import { useToast } from '../hooks/useToast'
 import { useAutoRefresh } from '../hooks/useAutoRefresh'
 import type { MonitoredService } from '../types'
 import type { ServiceListSort } from '../api/client'
@@ -14,6 +17,7 @@ type ActiveFilter = 'ALL' | 'ACTIVE' | 'PAUSED'
 
 export function ServicesPage() {
   const { canManage } = useAuth()
+  const notify = useToast()
   const [services, setServices] = useState<MonitoredService[]>([])
   const [query, setQuery] = useState('')
   const [activeFilter, setActiveFilter] = useState<ActiveFilter>('ALL')
@@ -59,6 +63,10 @@ export function ServicesPage() {
         current.map((item) => (item.id === updated.id ? updated : item)),
       )
       setError(null)
+      notify({
+        title: updated.active ? 'Monitoring resumed' : 'Monitoring paused',
+        message: `${updated.name} was updated successfully.`,
+      })
       void load()
     } catch (updateError) {
       setError(getApiErrorMessage(updateError, 'Unable to update monitoring state'))
@@ -142,13 +150,19 @@ export function ServicesPage() {
           <span>{totalElements} services</span>
         </div>
       </div>
-      {error && <div className="notice danger">{error}</div>}
+      {error && <FeedbackNotice tone="danger">{error}</FeedbackNotice>}
       {loading ? (
-        <div className="loading-panel">Loading services...</div>
+        <LoadingState label="Loading services" variant="table" />
       ) : (
         <ServiceTable
           services={services}
           canManage={canManage}
+          emptyTitle={query || activeFilter !== 'ALL' ? 'No matching services' : 'No services yet'}
+          emptyDescription={
+            query || activeFilter !== 'ALL'
+              ? 'Adjust the search or monitoring-state filter to broaden this view.'
+              : 'Register an API endpoint to start collecting uptime and latency data.'
+          }
           onActiveChange={canManage ? handleActiveChange : undefined}
           updatingServiceId={updatingServiceId}
         />

@@ -8,12 +8,17 @@ import {
 } from '../api/client'
 import { IncidentTable } from '../components/IncidentTable'
 import { LatencyChart } from '../components/LatencyChart'
+import { FeedbackNotice } from '../components/FeedbackNotice'
+import { LoadingState } from '../components/LoadingState'
+import { OnboardingCard } from '../components/OnboardingCard'
 import { ServiceTable } from '../components/ServiceTable'
 import { SummaryCard } from '../components/SummaryCard'
+import { useAuth } from '../auth/useAuth'
 import { useAutoRefresh } from '../hooks/useAutoRefresh'
 import type { DashboardSummary, HealthCheck, Incident, MonitoredService } from '../types'
 
 export function DashboardPage() {
+  const { canManage } = useAuth()
   const [summary, setSummary] = useState<DashboardSummary | null>(null)
   const [services, setServices] = useState<MonitoredService[]>([])
   const [activeIncidents, setActiveIncidents] = useState<Incident[]>([])
@@ -107,11 +112,11 @@ export function DashboardPage() {
     [summary],
   )
 
-  if (loading) return <div className="panel loading-panel">Loading dashboard data...</div>
+  if (loading) return <LoadingState label="Loading dashboard data" variant="cards" />
 
   return (
     <div className="dashboard-grid">
-      {error && <div className="notice danger">Could not load live data: {error}</div>}
+      {error && <FeedbackNotice tone="danger">Could not load live data: {error}</FeedbackNotice>}
 
       <section className="summary-grid">
         {cards.map((card) => (
@@ -119,15 +124,19 @@ export function DashboardPage() {
         ))}
       </section>
 
-      <section className="panel wide-panel">
-        <div className="panel-header">
-          <div>
-            <span>Registered APIs</span>
-            <h2>Current service health</h2>
+      {services.length === 0 ? (
+        <OnboardingCard canManage={canManage} />
+      ) : (
+        <section className="panel wide-panel">
+          <div className="panel-header">
+            <div>
+              <span>Registered APIs</span>
+              <h2>Current service health</h2>
+            </div>
           </div>
-        </div>
-        <ServiceTable services={services} compact />
-      </section>
+          <ServiceTable services={services} compact />
+        </section>
+      )}
 
       <section className="panel">
         <div className="panel-header">

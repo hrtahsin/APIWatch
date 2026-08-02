@@ -3,6 +3,7 @@ import { FormEvent, useState } from 'react'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { getApiErrorMessage } from '../api/client'
 import { useAuth } from '../auth/useAuth'
+import { FeedbackNotice } from '../components/FeedbackNotice'
 
 export function LoginPage() {
   const { user, login } = useAuth()
@@ -52,7 +53,7 @@ export function LoginPage() {
           <h1>Sign in</h1>
           <p>Use an administrator or read-only viewer account.</p>
         </div>
-        {error && <div className="notice danger">{error}</div>}
+        {error && <FeedbackNotice tone="danger">{error}</FeedbackNotice>}
         <form className="login-form" onSubmit={handleSubmit}>
           <label>
             <span>Username</span>

@@ -27,6 +27,18 @@
   box-sizing: border-box;
 }
 
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 body {
   margin: 0;
   min-width: 320px;
@@ -50,6 +62,15 @@ textarea {
 
 button {
   cursor: pointer;
+}
+
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid rgba(37, 99, 235, 0.42);
+  outline-offset: 3px;
 }
 
 .app-shell {
@@ -414,6 +435,12 @@ button {
   background: #fff;
 }
 
+.small-button {
+  min-height: 36px;
+  padding: 0 11px;
+  font-size: 12px;
+}
+
 .danger-button {
   min-height: 42px;
   padding: 0 16px;
@@ -573,6 +600,75 @@ button {
   place-items: center;
   color: var(--muted);
   text-align: center;
+}
+
+.empty-state {
+  align-content: center;
+  gap: 8px;
+  padding: 28px 18px;
+}
+
+.empty-state-icon {
+  display: grid;
+  width: 46px;
+  height: 46px;
+  margin: 0 auto 4px;
+  place-items: center;
+  color: var(--primary);
+  border-radius: 15px;
+  background: #eef1ff;
+}
+
+.empty-state strong {
+  color: var(--text);
+  font-size: 16px;
+}
+
+.empty-state p {
+  max-width: 440px;
+  margin: 0 auto;
+  line-height: 1.55;
+}
+
+.loading-state {
+  min-height: 220px;
+  border: 1px solid rgba(225, 231, 240, 0.9);
+  border-radius: 22px;
+  padding: 22px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: var(--shadow);
+}
+
+.skeleton-stack {
+  display: grid;
+  gap: 13px;
+}
+
+.skeleton-line {
+  display: block;
+  height: 52px;
+  border-radius: 14px;
+  background: linear-gradient(90deg, #edf1f7 25%, #f8fafc 50%, #edf1f7 75%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.4s ease-in-out infinite;
+}
+
+.loading-state-cards .skeleton-stack {
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+
+.loading-state-cards .skeleton-line {
+  height: 150px;
+}
+
+.loading-state-table .skeleton-line:first-child {
+  width: 42%;
+  height: 38px;
+}
+
+@keyframes skeleton-shimmer {
+  from { background-position: 100% 0; }
+  to { background-position: -100% 0; }
 }
 
 .not-found-panel {
@@ -797,6 +893,38 @@ button {
   height: 270px;
 }
 
+.latency-figure {
+  margin: 0;
+}
+
+.chart-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.chart-legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.chart-legend i {
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: var(--primary);
+}
+
+.compact-segments button {
+  padding: 6px 10px;
+}
+
 .notice {
   grid-column: 1 / -1;
   border-radius: 15px;
@@ -815,6 +943,54 @@ button {
   color: #087443;
   border: 1px solid #abefc6;
   background: #ecfdf3;
+}
+
+.toast-region {
+  position: fixed;
+  right: 22px;
+  bottom: 22px;
+  display: grid;
+  width: min(390px, calc(100vw - 36px));
+  gap: 10px;
+  z-index: 70;
+}
+
+.toast {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: flex-start;
+  gap: 11px;
+  border: 1px solid var(--border);
+  border-radius: 17px;
+  padding: 14px;
+  color: #344054;
+  background: #fff;
+  box-shadow: 0 18px 50px rgba(15, 23, 42, 0.18);
+}
+
+.toast-success > svg { color: #087443; }
+.toast-danger > svg { color: #b42318; }
+
+.toast strong,
+.toast span {
+  display: block;
+}
+
+.toast span {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.toast button {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border: 0;
+  border-radius: 9px;
+  color: var(--muted);
+  background: transparent;
 }
 
 .settings-grid {
@@ -855,6 +1031,121 @@ button {
   display: flex;
   flex-shrink: 0;
   gap: 10px;
+}
+
+.dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(15, 23, 42, 0.58);
+  backdrop-filter: blur(4px);
+  z-index: 60;
+}
+
+.confirmation-dialog {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  width: min(100%, 520px);
+  gap: 14px;
+  border: 1px solid #fecaca;
+  border-radius: 22px;
+  padding: 22px;
+  background: #fff;
+  box-shadow: 0 26px 80px rgba(15, 23, 42, 0.3);
+}
+
+.confirmation-dialog-icon {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  color: #b42318;
+  border-radius: 14px;
+  background: #fff1f0;
+}
+
+.confirmation-dialog h2 {
+  margin: 2px 0 0;
+  font-size: 20px;
+}
+
+.confirmation-dialog p {
+  margin: 7px 0 0;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.confirmation-dialog-actions {
+  display: flex;
+  grid-column: 1 / -1;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.onboarding-panel {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: minmax(0, 0.85fr) minmax(360px, 1.15fr);
+  align-items: center;
+  gap: 28px;
+  padding: 28px;
+  background:
+    linear-gradient(135deg, rgba(79, 99, 241, 0.12), rgba(20, 184, 166, 0.08)),
+    #fff;
+}
+
+.onboarding-copy h2 {
+  margin: 7px 0 8px;
+  font-size: 24px;
+}
+
+.onboarding-copy p {
+  margin: 0 0 18px;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.onboarding-viewer-note {
+  font-weight: 700;
+}
+
+.onboarding-steps {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.onboarding-steps li {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid rgba(219, 228, 240, 0.95);
+  border-radius: 15px;
+  padding: 13px;
+  color: var(--primary);
+  background: rgba(255, 255, 255, 0.78);
+}
+
+.onboarding-steps span,
+.onboarding-steps strong {
+  display: block;
+}
+
+.onboarding-steps span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.onboarding-steps strong {
+  margin-bottom: 2px;
+  color: var(--text);
+  font-size: 14px;
 }
 
 .diagnostic-panel {
@@ -1117,6 +1408,21 @@ button {
   font-weight: 500;
 }
 
+.service-form label > .field-error {
+  color: #b42318;
+  font-weight: 700;
+}
+
+.service-form [aria-invalid="true"] {
+  border-color: #f04438;
+  box-shadow: 0 0 0 3px rgba(240, 68, 56, 0.1);
+}
+
+.search-box:focus-within {
+  border-color: #8090f8;
+  box-shadow: 0 0 0 3px rgba(79, 99, 241, 0.12);
+}
+
 .form-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -1249,6 +1555,10 @@ button {
     grid-template-columns: 1fr;
   }
 
+  .onboarding-panel {
+    grid-template-columns: 1fr;
+  }
+
   .metrics-strip {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -1321,7 +1631,10 @@ button {
     display: none;
   }
 
-  .summary-grid,
+  .summary-grid {
+    grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
+  }
+
   .metrics-strip,
   .form-grid,
   .notification-rule-grid {
@@ -1344,5 +1657,150 @@ button {
 
   .toolbar-controls select {
     flex: 1 1 160px;
+  }
+}
+
+@media (max-width: 680px) {
+  .mobile-card-table {
+    overflow: visible;
+  }
+
+  .mobile-card-table .data-table,
+  .mobile-card-table tbody,
+  .mobile-card-table tr,
+  .mobile-card-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .mobile-card-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+  }
+
+  .mobile-card-table tbody {
+    display: grid;
+    gap: 12px;
+  }
+
+  .mobile-card-table tr {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 10px 13px;
+    background: #fff;
+  }
+
+  .mobile-card-table td {
+    display: block;
+    border-top: 1px solid #edf1f6;
+    padding: 10px 0;
+    word-break: break-word;
+  }
+
+  .mobile-card-table td:first-child,
+  .mobile-card-table td:nth-child(2) {
+    border-top: 0;
+  }
+
+  .mobile-card-table td::before {
+    content: attr(data-label);
+    color: #7a8699;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    display: block;
+    margin-bottom: 7px;
+  }
+
+  .mobile-card-table td[data-label="Service"],
+  .mobile-card-table td[data-label="Endpoint"],
+  .mobile-card-table td[data-label="Reason"],
+  .mobile-card-table td[data-label="Failure reason"],
+  .mobile-card-table td[data-label="Details"],
+  .mobile-card-table td[data-label="Actions"],
+  .mobile-card-table td[data-label="Action"] {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: 80px minmax(0, 1fr);
+    align-items: center;
+    gap: 10px;
+  }
+
+  .mobile-card-table td:nth-child(even) {
+    padding-left: 10px;
+  }
+
+  .mobile-card-table td[data-label="Service"],
+  .mobile-card-table td[data-label="Endpoint"],
+  .mobile-card-table td[data-label="Reason"],
+  .mobile-card-table td[data-label="Failure reason"],
+  .mobile-card-table td[data-label="Details"],
+  .mobile-card-table td[data-label="Actions"],
+  .mobile-card-table td[data-label="Action"] {
+    padding-left: 0;
+  }
+
+  .mobile-card-table td[data-label="Service"]::before,
+  .mobile-card-table td[data-label="Endpoint"]::before,
+  .mobile-card-table td[data-label="Reason"]::before,
+  .mobile-card-table td[data-label="Failure reason"]::before,
+  .mobile-card-table td[data-label="Details"]::before,
+  .mobile-card-table td[data-label="Actions"]::before,
+  .mobile-card-table td[data-label="Action"]::before {
+    margin-bottom: 0;
+  }
+
+  .mobile-card-table .service-name-cell {
+    min-width: 0;
+  }
+
+  .mobile-card-table .endpoint-text,
+  .mobile-card-table .reason-cell small {
+    max-width: 100%;
+  }
+
+  .mobile-card-table .row-actions {
+    justify-content: flex-start;
+  }
+
+  .confirmation-dialog {
+    grid-template-columns: 1fr;
+  }
+
+  .confirmation-dialog-actions {
+    grid-column: 1;
+    flex-direction: column-reverse;
+  }
+
+  .toast-region {
+    right: 18px;
+    bottom: 18px;
+  }
+
+  .pagination {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .pagination > div,
+  .pagination button {
+    flex: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }

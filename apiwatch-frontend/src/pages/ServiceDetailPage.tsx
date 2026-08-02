@@ -12,9 +12,14 @@ import {
 } from '../api/client'
 import { useAuth } from '../auth/useAuth'
 import { IncidentTable } from '../components/IncidentTable'
+import { ConfirmDialog } from '../components/ConfirmDialog'
+import { EmptyState } from '../components/EmptyState'
+import { FeedbackNotice } from '../components/FeedbackNotice'
 import { LatencyChart } from '../components/LatencyChart'
+import { LoadingState } from '../components/LoadingState'
 import { Pagination } from '../components/Pagination'
 import { StatusBadge } from '../components/StatusBadge'
+import { useToast } from '../hooks/useToast'
 import { useAutoRefresh } from '../hooks/useAutoRefresh'
 import type {
   FailureType,
@@ -40,6 +45,7 @@ const checkPageSize = 10
 
 export function ServiceDetailPage() {
   const { canManage } = useAuth()
+  const notify = useToast()
   const serviceId = Number(useParams().id)
   const navigate = useNavigate()
   const [service, setService] = useState<MonitoredService | null>(null)
@@ -98,6 +104,7 @@ export function ServiceDetailPage() {
       setCheckPage(0)
       await load(0)
       setError(null)
+      notify({ title: 'Health check complete', message: 'The service metrics are now up to date.' })
     } catch (runError) {
       setError(getApiErrorMessage(runError, 'Health check failed'))
     } finally {
@@ -109,6 +116,7 @@ export function ServiceDetailPage() {
     try {
       setDeleting(true)
       await deleteService(serviceId)
+      notify({ title: 'Service deleted', message: `${service?.name ?? 'The service'} was removed.` })
       navigate('/services', { replace: true })
     } catch (deleteError) {
       setError(getApiErrorMessage(deleteError, 'Unable to delete service'))
@@ -117,8 +125,10 @@ export function ServiceDetailPage() {
     }
   }
 
-  if (loading) return <div className="panel loading-panel">Loading service details...</div>
-  if (!service) return <div className="notice danger">Service not found.</div>
+  const handleCancelDelete = useCallback(() => setConfirmingDelete(false), [])
+
+  if (loading) return <LoadingState label="Loading service details" variant="panel" />
+  if (!service) return <FeedbackNotice tone="danger">Service not found.</FeedbackNotice>
 
   const rateLimitedUntil = service.rateLimitedUntil
     ? new Date(service.rateLimitedUntil)
@@ -127,7 +137,7 @@ export function ServiceDetailPage() {
 
   return (
     <div className="detail-grid">
-      {error && <div className="notice danger">{error}</div>}
+      {error && <FeedbackNotice tone="danger">{error}</FeedbackNotice>}
 
       <section className="panel service-hero">
         <div>
@@ -214,28 +224,14 @@ export function ServiceDetailPage() {
       )}
 
       {canManage && confirmingDelete && (
-        <section className="delete-confirmation">
-          <div>
-            <strong>Delete {service.name}?</strong>
-            <span>
-              This permanently removes the service, its health-check history, and its incidents.
-            </span>
-          </div>
-          <div className="delete-confirmation-actions">
-            <button
-              className="secondary-button"
-              disabled={deleting}
-              onClick={() => setConfirmingDelete(false)}
-              type="button"
-            >
-              Cancel
-            </button>
-            <button className="danger-button solid" disabled={deleting} onClick={handleDelete} type="button">
-              <Trash2 size={17} />
-              {deleting ? 'Deleting...' : 'Delete permanently'}
-            </button>
-          </div>
-        </section>
+        <ConfirmDialog
+          busy={deleting}
+          confirmLabel="Delete permanently"
+          description="This permanently removes the service, its health-check history, and its incidents."
+          onCancel={handleCancelDelete}
+          onConfirm={handleDelete}
+          title={`Delete ${service.name}?`}
+        />
       )}
 
       <section className="metrics-strip">
@@ -274,7 +270,13 @@ export function ServiceDetailPage() {
             <h2>Recent health checks</h2>
           </div>
         </div>
-        <div className="table-scroll">
+        {checks.length === 0 ? (
+          <EmptyState
+            title="No health checks yet"
+            description="Run the first check to begin building this service's audit trail."
+          />
+        ) : (
+        <div className="table-scroll mobile-card-table">
           <table className="data-table">
             <thead>
               <tr>
@@ -288,21 +290,22 @@ export function ServiceDetailPage() {
             <tbody>
               {checks.map((check) => (
                 <tr key={check.id}>
-                  <td>
+                  <td data-label="Status">
                     <StatusBadge status={check.status} />
                   </td>
-                  <td className="metric-cell">{check.httpStatusCode ?? '—'}</td>
-                  <td className="metric-cell">{check.responseTimeMs ?? '—'} ms</td>
-                  <td className="reason-cell">
+                  <td className="metric-cell" data-label="HTTP">{check.httpStatusCode ?? '—'}</td>
+                  <td className="metric-cell" data-label="Latency">{check.responseTimeMs ?? '—'} ms</td>
+                  <td className="reason-cell" data-label="Failure reason">
                     {check.failureType ? failureLabels[check.failureType] : '—'}
                     {check.errorMessage && <small>{check.errorMessage}</small>}
                   </td>
-                  <td className="muted-cell">{formatDate(check.checkedAt)}</td>
+                  <td className="muted-cell" data-label="Checked">{formatDate(check.checkedAt)}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+        )}
         <Pagination
           page={checkPage}
           totalPages={checkTotalPages}

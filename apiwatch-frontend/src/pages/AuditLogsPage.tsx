@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
 import { getApiErrorMessage, getAuditLogsPage } from '../api/client'
 import { Pagination } from '../components/Pagination'
+import { EmptyState } from '../components/EmptyState'
+import { FeedbackNotice } from '../components/FeedbackNotice'
+import { LoadingState } from '../components/LoadingState'
 import type { AuditAction, AuditLog } from '../types'
 import { formatDate } from '../utils/format'
 
@@ -54,14 +57,17 @@ export function AuditLogsPage() {
         <span className="table-count">{totalElements} events</span>
       </div>
 
-      {error && <div className="notice danger">{error}</div>}
+      {error && <FeedbackNotice tone="danger">{error}</FeedbackNotice>}
 
       {loading ? (
-        <div className="loading-panel">Loading audit logs...</div>
+        <LoadingState label="Loading audit logs" variant="table" />
       ) : logs.length === 0 ? (
-        <div className="empty-state">No administrative actions have been recorded yet.</div>
+        <EmptyState
+          title="No audit activity yet"
+          description="Administrative changes will appear here as they happen."
+        />
       ) : (
-        <div className="table-scroll">
+        <div className="table-scroll mobile-card-table">
           <table className="data-table">
             <thead>
               <tr>
@@ -75,16 +81,16 @@ export function AuditLogsPage() {
             <tbody>
               {logs.map((log) => (
                 <tr key={log.id}>
-                  <td className="muted-cell">{formatDate(log.createdAt)}</td>
-                  <td className="metric-cell">{log.actorUsername}</td>
-                  <td>
+                  <td className="muted-cell" data-label="When">{formatDate(log.createdAt)}</td>
+                  <td className="metric-cell" data-label="Actor">{log.actorUsername}</td>
+                  <td data-label="Action">
                     <span className="audit-action">{actionLabels[log.action]}</span>
                   </td>
-                  <td>
+                  <td data-label="Target">
                     <strong>{log.targetName ?? log.targetType}</strong>
                     {log.targetId && <small>#{log.targetId}</small>}
                   </td>
-                  <td className="reason-cell">{log.details ?? '—'}</td>
+                  <td className="reason-cell" data-label="Details">{log.details ?? '—'}</td>
                 </tr>
               ))}
             </tbody>

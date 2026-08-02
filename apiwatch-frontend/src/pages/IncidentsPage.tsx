@@ -2,7 +2,10 @@ import { useCallback, useEffect, useState } from 'react'
 import { getApiErrorMessage, getIncidentsPage, resolveIncident } from '../api/client'
 import { useAuth } from '../auth/useAuth'
 import { IncidentTable } from '../components/IncidentTable'
+import { FeedbackNotice } from '../components/FeedbackNotice'
+import { LoadingState } from '../components/LoadingState'
 import { Pagination } from '../components/Pagination'
+import { useToast } from '../hooks/useToast'
 import { useAutoRefresh } from '../hooks/useAutoRefresh'
 import type { Incident, IncidentStatus } from '../types'
 
@@ -11,6 +14,7 @@ const pageSize = 10
 
 export function IncidentsPage() {
   const { canManage } = useAuth()
+  const notify = useToast()
   const [incidents, setIncidents] = useState<Incident[]>([])
   const [filter, setFilter] = useState<'ALL' | IncidentStatus>('ALL')
   const [page, setPage] = useState(0)
@@ -53,6 +57,7 @@ export function IncidentsPage() {
       await resolveIncident(id)
       await load()
       setError(null)
+      notify({ title: 'Incident resolved', message: 'The incident timeline has been updated.' })
     } catch (resolveError) {
       setError(getApiErrorMessage(resolveError, 'Unable to resolve incident'))
     }
@@ -83,9 +88,9 @@ export function IncidentsPage() {
           ))}
         </div>
       </div>
-      {error && <div className="notice danger">Could not load incidents: {error}</div>}
+      {error && <FeedbackNotice tone="danger">Could not load incidents: {error}</FeedbackNotice>}
       {loading ? (
-        <div className="loading-panel">Loading incidents...</div>
+        <LoadingState label="Loading incidents" variant="table" />
       ) : (
         <IncidentTable
           incidents={incidents}

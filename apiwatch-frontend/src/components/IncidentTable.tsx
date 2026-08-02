@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import type { Incident } from '../types'
 import { formatDate, formatDuration } from '../utils/format'
 import { StatusBadge } from './StatusBadge'
+import { EmptyState } from './EmptyState'
 
 export function IncidentTable({
   incidents,
@@ -12,11 +13,16 @@ export function IncidentTable({
   onResolve?: (id: number) => void
 }) {
   if (incidents.length === 0) {
-    return <div className="empty-state">No incidents match this view.</div>
+    return (
+      <EmptyState
+        title="No incidents found"
+        description="There are no incidents matching the selected view."
+      />
+    )
   }
 
   return (
-    <div className="table-scroll">
+    <div className="table-scroll mobile-card-table">
       <table className="data-table incident-table">
         <thead>
           <tr>
@@ -31,19 +37,19 @@ export function IncidentTable({
         <tbody>
           {incidents.map((incident) => (
             <tr key={incident.id}>
-              <td>
+              <td data-label="Service">
                 <Link className="table-link" to={`/services/${incident.serviceId}`}>
                   {incident.serviceName}
                 </Link>
               </td>
-              <td>
+              <td data-label="Status">
                 <StatusBadge status={incident.status} />
               </td>
-              <td className="reason-cell">{incident.reason}</td>
-              <td className="muted-cell">{formatDate(incident.startedAt)}</td>
-              <td className="metric-cell">{formatDuration(incident.durationSeconds)}</td>
+              <td className="reason-cell" data-label="Reason">{incident.reason}</td>
+              <td className="muted-cell" data-label="Started">{formatDate(incident.startedAt)}</td>
+              <td className="metric-cell" data-label="Duration">{formatDuration(incident.durationSeconds)}</td>
               {onResolve && (
-                <td>
+                <td className="table-actions-cell" data-label="Actions">
                   {incident.status === 'ACTIVE' && (
                     <button
                       className="text-button"
