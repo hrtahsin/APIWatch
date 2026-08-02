@@ -2,6 +2,9 @@ import { Save } from 'lucide-react'
 import { FormEvent, useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { createService, getApiErrorMessage, getService, updateService } from '../api/client'
+import { FeedbackNotice } from '../components/FeedbackNotice'
+import { LoadingState } from '../components/LoadingState'
+import { useToast } from '../hooks/useToast'
 import type { ServiceInput } from '../types'
 
 const defaultForm: ServiceInput = {
@@ -50,14 +53,20 @@ function parseCustomHeaders(value: string): Record<string, string> {
   return headers
 }
 
+type FieldErrors = Partial<
+  Record<'authValue' | 'customHeaders' | 'expectedStatus' | 'name' | 'url', string>
+>
+
 export function ServiceFormPage() {
   const { id } = useParams()
   const serviceId = id ? Number(id) : null
   const navigate = useNavigate()
+  const notify = useToast()
   const [form, setForm] = useState<ServiceInput>(defaultForm)
   const [loading, setLoading] = useState(Boolean(serviceId))
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({})
   const [customHeaderText, setCustomHeaderText] = useState('')
   const [storedHeaderNames, setStoredHeaderNames] = useState<string[]>([])
   const [clearStoredHeaders, setClearStoredHeaders] = useState(false)
@@ -101,25 +110,54 @@ export function ServiceFormPage() {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (!form.name.trim() || !form.url.trim()) {
-      setError('Service name and URL are required.')
-      return
+    const validationErrors: FieldErrors = {}
+    if (!form.name.trim()) validationErrors.name = 'Enter a service name.'
+    if (!form.url.trim()) {
+      validationErrors.url = 'Enter a health check URL.'
+    } else {
+      try {
+        const url = new URL(form.url)
+        if (!['http:', 'https:'].includes(url.protocol)) {
+          validationErrors.url = 'Use an HTTP or HTTPS URL.'
+        }
+      } catch {
+        validationErrors.url = 'Enter a valid URL, including https://.'
+      }
     }
+    if (form.authType !== 'NONE' && !form.authValue && !serviceId) {
+      validationErrors.authValue = 'Enter the authentication value.'
+    }
+    if (form.expectedStatusMin > form.expectedStatusMax) {
+      validationErrors.expectedStatus = 'Minimum status cannot exceed the maximum.'
+    }
+
+    let customHeaders: Record<string, string> | null = null
     try {
-      setSaving(true)
-      const customHeaders = customHeaderText.trim()
+      customHeaders = customHeaderText.trim()
         ? parseCustomHeaders(customHeaderText)
         : clearStoredHeaders
           ? {}
           : null
-      if (form.authType !== 'NONE' && !form.authValue && !serviceId) {
-        throw new Error('Authentication value is required.')
-      }
-      if (form.expectedStatusMin > form.expectedStatusMax) {
-        throw new Error('Expected status minimum cannot exceed the maximum.')
-      }
+    } catch (headerError) {
+      validationErrors.customHeaders =
+        headerError instanceof Error ? headerError.message : 'Review the custom headers.'
+    }
+
+    if (Object.keys(validationErrors).length > 0) {
+      setFieldErrors(validationErrors)
+      setError('Review the highlighted fields and try again.')
+      return
+    }
+
+    try {
+      setSaving(true)
       const input = { ...form, customHeaders }
       const saved = serviceId ? await updateService(serviceId, input) : await createService(input)
+      setFieldErrors({})
+      notify({
+        title: serviceId ? 'Service updated' : 'Service registered',
+        message: `${saved.name} is ready for monitoring.`,
+      })
       navigate(`/services/${saved.id}`)
     } catch (saveError) {
       setError(getApiErrorMessage(saveError, 'Unable to save service'))
@@ -132,6 +170,11 @@ export function ServiceFormPage() {
     setForm((current) => ({ ...current, [key]: value }))
   }
 
+  function clearFieldError(key: keyof FieldErrors) {
+    setFieldErrors((current) => ({ ...current, [key]: undefined }))
+    setError(null)
+  }
+
   function updateTags(value: string) {
     update(
       'tags',
@@ -142,7 +185,7 @@ export function ServiceFormPage() {
     )
   }
 
-  if (loading) return <div className="panel loading-panel">Loading service configuration...</div>
+  if (loading) return <LoadingState label="Loading service configuration" variant="panel" />
 
   return (
     <section className="panel form-panel">
@@ -152,27 +195,39 @@ export function ServiceFormPage() {
           <h2>{serviceId ? 'Edit monitored service' : 'Register a monitored service'}</h2>
         </div>
       </div>
-      {error && <div className="notice danger">{error}</div>}
-      <form className="service-form" onSubmit={handleSubmit}>
+      {error && <FeedbackNotice tone="danger">{error}</FeedbackNotice>}
+      <form className="service-form" onSubmit={handleSubmit} noValidate>
         <label>
           <span>Service name</span>
           <input
             value={form.name}
-            onChange={(event) => update('name', event.target.value)}
+            onChange={(event) => {
+              update('name', event.target.value)
+              clearFieldError('name')
+            }}
             placeholder="Payment Service"
             required
+            aria-invalid={Boolean(fieldErrors.name)}
+            aria-describedby={fieldErrors.name ? 'service-name-error' : undefined}
           />
+          {fieldErrors.name && <small className="field-error" id="service-name-error">{fieldErrors.name}</small>}
         </label>
 
         <label>
           <span>Health check URL</span>
           <input
             value={form.url}
-            onChange={(event) => update('url', event.target.value)}
+            onChange={(event) => {
+              update('url', event.target.value)
+              clearFieldError('url')
+            }}
             placeholder="https://example.com/health"
             required
             type="url"
+            aria-invalid={Boolean(fieldErrors.url)}
+            aria-describedby={fieldErrors.url ? 'service-url-error' : undefined}
           />
+          {fieldErrors.url && <small className="field-error" id="service-url-error">{fieldErrors.url}</small>}
         </label>
 
         <div className="form-section">
@@ -232,7 +287,12 @@ export function ServiceFormPage() {
               max={599}
               type="number"
               value={form.expectedStatusMin}
-              onChange={(event) => update('expectedStatusMin', Number(event.target.value))}
+              onChange={(event) => {
+                update('expectedStatusMin', Number(event.target.value))
+                clearFieldError('expectedStatus')
+              }}
+              aria-invalid={Boolean(fieldErrors.expectedStatus)}
+              aria-describedby={fieldErrors.expectedStatus ? 'expected-status-error' : undefined}
             />
           </label>
           <label>
@@ -242,8 +302,16 @@ export function ServiceFormPage() {
               max={599}
               type="number"
               value={form.expectedStatusMax}
-              onChange={(event) => update('expectedStatusMax', Number(event.target.value))}
+              onChange={(event) => {
+                update('expectedStatusMax', Number(event.target.value))
+                clearFieldError('expectedStatus')
+              }}
+              aria-invalid={Boolean(fieldErrors.expectedStatus)}
+              aria-describedby={fieldErrors.expectedStatus ? 'expected-status-error' : undefined}
             />
+            {fieldErrors.expectedStatus && (
+              <small className="field-error" id="expected-status-error">{fieldErrors.expectedStatus}</small>
+            )}
           </label>
           <label>
             <span>Request timeout ms</span>
@@ -404,12 +472,20 @@ export function ServiceFormPage() {
                 <span>{form.authType === 'BEARER' ? 'Bearer token' : 'API key value'}</span>
                 <input
                   value={form.authValue}
-                  onChange={(event) => update('authValue', event.target.value)}
+                  onChange={(event) => {
+                    update('authValue', event.target.value)
+                    clearFieldError('authValue')
+                  }}
                   placeholder={
                     serviceId ? 'Leave blank to keep the stored secret' : 'Enter secret value'
                   }
                   type="password"
+                  aria-invalid={Boolean(fieldErrors.authValue)}
+                  aria-describedby={fieldErrors.authValue ? 'auth-value-error' : undefined}
                 />
+                {fieldErrors.authValue && (
+                  <small className="field-error" id="auth-value-error">{fieldErrors.authValue}</small>
+                )}
               </label>
             )}
           </div>
@@ -432,11 +508,19 @@ export function ServiceFormPage() {
             <span>Custom headers</span>
             <textarea
               value={customHeaderText}
-              onChange={(event) => setCustomHeaderText(event.target.value)}
+              onChange={(event) => {
+                setCustomHeaderText(event.target.value)
+                clearFieldError('customHeaders')
+              }}
               placeholder={'X-Tenant-ID: customer-7\nAccept: application/json'}
               rows={4}
+              aria-invalid={Boolean(fieldErrors.customHeaders)}
+              aria-describedby={fieldErrors.customHeaders ? 'custom-headers-error' : undefined}
             />
             <small>Enter one header per line using `Header-Name: value`.</small>
+            {fieldErrors.customHeaders && (
+              <small className="field-error" id="custom-headers-error">{fieldErrors.customHeaders}</small>
+            )}
           </label>
 
           {storedHeaderNames.length > 0 && (

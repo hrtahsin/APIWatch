@@ -2,6 +2,7 @@ import { createBrowserRouter, RouterProvider } from 'react-router-dom'
 import { AuthProvider } from './auth/AuthContext'
 import { ProtectedRoute } from './auth/ProtectedRoute'
 import { AppLayout } from './components/AppLayout'
+import { ToastProvider } from './components/ToastProvider'
 import { AuditLogsPage } from './pages/AuditLogsPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { IncidentsPage } from './pages/IncidentsPage'
@@ -65,8 +66,10 @@ const router = createBrowserRouter([
 
 export default function App() {
   return (
-    <AuthProvider>
-      <RouterProvider router={router} />
-    </AuthProvider>
+    <ToastProvider>
+      <AuthProvider>
+        <RouterProvider router={router} />
+      </AuthProvider>
+    </ToastProvider>
   )
 }

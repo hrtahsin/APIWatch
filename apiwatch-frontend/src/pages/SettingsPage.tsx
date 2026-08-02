@@ -14,6 +14,10 @@ import type {
   NotificationSettingsInput,
 } from '../types'
 import { formatDate } from '../utils/format'
+import { EmptyState } from '../components/EmptyState'
+import { FeedbackNotice } from '../components/FeedbackNotice'
+import { LoadingState } from '../components/LoadingState'
+import { useToast } from '../hooks/useToast'
 
 const defaultInput: NotificationSettingsInput = {
   enabled: false,
@@ -86,13 +90,13 @@ function destinationHelp(provider: NotificationProvider): string {
 }
 
 export function SettingsPage() {
+  const notify = useToast()
   const [settings, setSettings] = useState<NotificationSettings | null>(null)
   const [form, setForm] = useState(defaultInput)
   const [deliveries, setDeliveries] = useState<NotificationDelivery[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [retryingDeliveryId, setRetryingDeliveryId] = useState<number | null>(null)
-  const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -126,7 +130,6 @@ export function SettingsPage() {
     }
     try {
       setSaving(true)
-      setSaved(false)
       const updated = await updateNotificationSettings({
         ...form,
         destination: form.destination.trim(),
@@ -140,9 +143,12 @@ export function SettingsPage() {
         cooldownSeconds: updated.cooldownSeconds,
         escalationMinutes: updated.escalationMinutes,
       })
-      setSaved(true)
       setError(null)
       setDeliveries(await getNotificationDeliveries())
+      notify({
+        title: 'Settings saved',
+        message: 'Notification delivery preferences are up to date.',
+      })
     } catch (saveError) {
       setError(getApiErrorMessage(saveError, 'Unable to save notification settings'))
     } finally {
@@ -158,6 +164,10 @@ export function SettingsPage() {
         current.map((delivery) => (delivery.id === deliveryId ? retried : delivery)),
       )
       setError(null)
+      notify({
+        title: 'Delivery queued',
+        message: 'The failed notification has been queued for another attempt.',
+      })
     } catch (retryError) {
       setError(getApiErrorMessage(retryError, 'Unable to retry notification delivery'))
     } finally {
@@ -166,7 +176,7 @@ export function SettingsPage() {
   }
 
   if (loading) {
-    return <div className="panel loading-panel">Loading notification settings...</div>
+    return <LoadingState label="Loading notification settings" variant="panel" />
   }
 
   return (
@@ -179,8 +189,7 @@ export function SettingsPage() {
           </div>
           <BellRing size={22} />
         </div>
-        {error && <div className="notice danger">{error}</div>}
-        {saved && <div className="notice success">Notification settings saved.</div>}
+        {error && <FeedbackNotice tone="danger">{error}</FeedbackNotice>}
         <form className="service-form" onSubmit={handleSubmit}>
           <label className="toggle-row">
             <input
@@ -308,9 +317,12 @@ export function SettingsPage() {
           <ShieldCheck size={22} />
         </div>
         {deliveries.length === 0 ? (
-          <div className="empty-state">No notification deliveries have been queued yet.</div>
+          <EmptyState
+            title="No deliveries yet"
+            description="Incident notification attempts will appear here once delivery is enabled."
+          />
         ) : (
-          <div className="table-scroll">
+          <div className="table-scroll mobile-card-table">
             <table className="data-table">
               <thead>
                 <tr>
@@ -328,27 +340,27 @@ export function SettingsPage() {
               <tbody>
                 {deliveries.map((delivery) => (
                   <tr key={delivery.id}>
-                    <td>
+                    <td data-label="Provider">
                       {providerLabels[delivery.provider]}
                       {delivery.destinationDisplay && (
                         <small className="table-subtext">{delivery.destinationDisplay}</small>
                       )}
                     </td>
-                    <td>{eventLabels[delivery.eventType]}</td>
-                    <td>{delivery.status.replaceAll('_', ' ')}</td>
-                    <td>{delivery.httpStatusCode ?? '—'}</td>
-                    <td>{delivery.attemptCount}</td>
-                    <td className="muted-cell">
+                    <td data-label="Event">{eventLabels[delivery.eventType]}</td>
+                    <td data-label="Status">{delivery.status.replaceAll('_', ' ')}</td>
+                    <td data-label="HTTP">{delivery.httpStatusCode ?? '—'}</td>
+                    <td data-label="Attempts">{delivery.attemptCount}</td>
+                    <td className="muted-cell" data-label="Next attempt">
                       {delivery.nextAttemptAt ? formatDate(delivery.nextAttemptAt) : '—'}
                     </td>
-                    <td className="muted-cell">
+                    <td className="muted-cell" data-label="Last attempt">
                       {delivery.lastAttemptAt ? formatDate(delivery.lastAttemptAt) : '—'}
                     </td>
-                    <td className="muted-cell">{formatDate(delivery.attemptedAt)}</td>
-                    <td>
+                    <td className="muted-cell" data-label="Queued">{formatDate(delivery.attemptedAt)}</td>
+                    <td className="table-actions-cell" data-label="Action">
                       {delivery.status === 'FAILED' ? (
                         <button
-                          className="button secondary small"
+                          className="secondary-button small-button"
                           disabled={retryingDeliveryId === delivery.id}
                           onClick={() => handleRetry(delivery.id)}
                           type="button"

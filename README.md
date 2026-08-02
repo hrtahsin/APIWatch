@@ -378,8 +378,10 @@ npm run test:e2e
 ```
 
 The Playwright acceptance suite starts the frontend in isolated demo mode. It
-checks administrator navigation, viewer route enforcement, and WCAG A/AA
-serious-or-critical violations on the login and core operational screens.
+checks administrator navigation, viewer route enforcement, mutation feedback,
+destructive-action safeguards, field validation, mobile navigation and table
+layouts, and WCAG A/AA serious-or-critical violations across the core
+operational and configuration screens.
 
 ## CI/CD
 

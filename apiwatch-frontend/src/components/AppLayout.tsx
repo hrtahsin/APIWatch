@@ -11,7 +11,7 @@ import {
   Settings,
   X,
 } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth'
 import { requestAppRefresh } from '../hooks/useAutoRefresh'
@@ -33,6 +33,10 @@ const titles: Record<string, { title: string; eyebrow: string }> = {
 
 export function AppLayout() {
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [isMobile, setIsMobile] = useState(false)
+  const closeButtonRef = useRef<HTMLButtonElement>(null)
+  const menuButtonRef = useRef<HTMLButtonElement>(null)
+  const sidebarRef = useRef<HTMLElement>(null)
   const { user, canManage, logout } = useAuth()
   const location = useLocation()
   const title = titles[location.pathname] ?? {
@@ -40,9 +44,60 @@ export function AppLayout() {
     eyebrow: 'Service intelligence',
   }
 
+  useEffect(() => {
+    const query = window.matchMedia('(max-width: 860px)')
+    const update = () => setIsMobile(query.matches)
+    update()
+    query.addEventListener('change', update)
+    return () => query.removeEventListener('change', update)
+  }, [])
+
+  useEffect(() => {
+    if (!isMobile || !mobileOpen) return
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    closeButtonRef.current?.focus()
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setMobileOpen(false)
+        menuButtonRef.current?.focus()
+      }
+      if (event.key === 'Tab') {
+        const controls = Array.from(
+          sidebarRef.current?.querySelectorAll<HTMLElement>('a[href], button:not(:disabled)') ?? [],
+        )
+        const first = controls[0]
+        const last = controls.at(-1)
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault()
+          last?.focus()
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault()
+          first?.focus()
+        }
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.body.style.overflow = previousOverflow
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [isMobile, mobileOpen])
+
+  function closeMobileNavigation() {
+    setMobileOpen(false)
+    if (isMobile) window.setTimeout(() => menuButtonRef.current?.focus(), 0)
+  }
+
   return (
     <div className="app-shell min-h-screen">
-      <aside className={`sidebar ${mobileOpen ? 'sidebar-open' : ''}`}>
+      <aside
+        className={`sidebar ${mobileOpen ? 'sidebar-open' : ''}`}
+        id="primary-sidebar"
+        aria-hidden={isMobile && !mobileOpen ? true : undefined}
+        inert={isMobile && !mobileOpen ? true : undefined}
+        ref={sidebarRef}
+      >
         <div className="brand">
           <div className="brand-mark">
             <Activity size={21} strokeWidth={2.4} />
@@ -51,7 +106,7 @@ export function AppLayout() {
             <strong>APIWatch</strong>
             <span>Reliability console</span>
           </div>
-          <button className="mobile-close" onClick={() => setMobileOpen(false)} aria-label="Close menu">
+          <button className="mobile-close" onClick={closeMobileNavigation} aria-label="Close menu" ref={closeButtonRef}>
             <X size={20} />
           </button>
         </div>
@@ -63,7 +118,7 @@ export function AppLayout() {
               key={to}
               to={to}
               end={to === '/'}
-              onClick={() => setMobileOpen(false)}
+              onClick={closeMobileNavigation}
               className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
             >
               <Icon size={18} />
@@ -76,7 +131,7 @@ export function AppLayout() {
               <span className="nav-label nav-label-secondary">Manage</span>
               <NavLink
                 to="/services/new"
-                onClick={() => setMobileOpen(false)}
+                onClick={closeMobileNavigation}
                 className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
               >
                 <Plus size={18} />
@@ -84,7 +139,7 @@ export function AppLayout() {
               </NavLink>
               <NavLink
                 to="/settings"
-                onClick={() => setMobileOpen(false)}
+                onClick={closeMobileNavigation}
                 className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
               >
                 <Settings size={18} />
@@ -92,7 +147,7 @@ export function AppLayout() {
               </NavLink>
               <NavLink
                 to="/audit-logs"
-                onClick={() => setMobileOpen(false)}
+                onClick={closeMobileNavigation}
                 className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
               >
                 <ScrollText size={18} />
@@ -114,12 +169,26 @@ export function AppLayout() {
         </div>
       </aside>
 
-      {mobileOpen && <button className="sidebar-backdrop" onClick={() => setMobileOpen(false)} />}
+      {mobileOpen && (
+        <button
+          className="sidebar-backdrop"
+          onClick={closeMobileNavigation}
+          aria-label="Close navigation"
+          tabIndex={-1}
+        />
+      )}
 
       <main className="main-content">
         <header className="topbar">
           <div className="page-heading">
-            <button className="menu-button" onClick={() => setMobileOpen(true)} aria-label="Open menu">
+            <button
+              className="menu-button"
+              onClick={() => setMobileOpen(true)}
+              aria-controls="primary-sidebar"
+              aria-expanded={mobileOpen}
+              aria-label="Open menu"
+              ref={menuButtonRef}
+            >
               <Menu size={20} />
             </button>
             <div>
@@ -132,7 +201,7 @@ export function AppLayout() {
             <button className="icon-button" onClick={requestAppRefresh} aria-label="Refresh data">
               <RefreshCw size={17} />
             </button>
-            {canManage && (
+            {canManage && location.pathname !== '/services' && location.pathname !== '/services/new' && (
               <NavLink className="primary-button compact" to="/services/new">
                 <Plus size={17} />
                 Add service

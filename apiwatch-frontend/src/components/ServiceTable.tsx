@@ -3,26 +3,36 @@ import { Link } from 'react-router-dom'
 import type { MonitoredService } from '../types'
 import { formatRelative } from '../utils/format'
 import { StatusBadge } from './StatusBadge'
+import { EmptyState } from './EmptyState'
 
 export function ServiceTable({
   services,
   compact = false,
   canManage = true,
+  emptyDescription = 'Register an API endpoint to start collecting uptime and latency data.',
+  emptyTitle = 'No services yet',
   onActiveChange,
   updatingServiceId,
 }: {
   services: MonitoredService[]
   compact?: boolean
   canManage?: boolean
+  emptyDescription?: string
+  emptyTitle?: string
   onActiveChange?: (service: MonitoredService) => void
   updatingServiceId?: number | null
 }) {
   if (services.length === 0) {
-    return <div className="empty-state">No services have been registered yet.</div>
+    return (
+      <EmptyState
+        title={emptyTitle}
+        description={emptyDescription}
+      />
+    )
   }
 
   return (
-    <div className="table-scroll">
+    <div className="table-scroll mobile-card-table">
       <table className="data-table">
         <thead>
           <tr>
@@ -40,7 +50,7 @@ export function ServiceTable({
 
             return (
             <tr key={service.id}>
-              <td>
+              <td data-label="Service">
                 <div className="service-name-cell">
                   <span className="service-avatar">{service.name.slice(0, 2).toUpperCase()}</span>
                   <div>
@@ -59,19 +69,19 @@ export function ServiceTable({
                   </div>
                 </div>
               </td>
-              <td>
+              <td data-label="Status">
                 <StatusBadge status={service.currentStatus} />
               </td>
               {!compact && (
-                <td>
+                <td data-label="Endpoint">
                   <span className="endpoint-text">{service.url}</span>
                 </td>
               )}
-              <td className="metric-cell">
+              <td className="metric-cell" data-label="Latency">
                 {service.lastResponseTimeMs === null ? '—' : `${service.lastResponseTimeMs} ms`}
               </td>
-              <td className="muted-cell">{formatRelative(service.lastCheckedAt)}</td>
-              <td>
+              <td className="muted-cell" data-label="Last checked">{formatRelative(service.lastCheckedAt)}</td>
+              <td className="table-actions-cell" data-label="Actions">
                 <div className="row-actions">
                   {!compact && onActiveChange && (
                     <button

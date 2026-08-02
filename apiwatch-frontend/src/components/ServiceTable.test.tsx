@@ -71,4 +71,19 @@ describe('ServiceTable', () => {
 
     expect(onActiveChange).toHaveBeenCalledWith(service)
   })
+
+  it('explains an empty filtered result', () => {
+    render(
+      <MemoryRouter>
+        <ServiceTable
+          services={[]}
+          emptyTitle="No matching services"
+          emptyDescription="Adjust the current filters."
+        />
+      </MemoryRouter>,
+    )
+
+    expect(screen.getByText('No matching services')).toBeInTheDocument()
+    expect(screen.getByText('Adjust the current filters.')).toBeInTheDocument()
+  })
 })
