@@ -1,77 +1,60 @@
 # APIWatch
 
-APIWatch is a production-style API monitoring and incident management platform. It runs scheduled health checks against registered services, records uptime and latency history in PostgreSQL, detects repeated failures, opens incidents automatically, and resolves them when a service recovers.
+[![CI/CD](https://github.com/hrtahsin/APIWatch/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/hrtahsin/APIWatch/actions/workflows/ci-cd.yml)
+[![CodeQL](https://github.com/hrtahsin/APIWatch/actions/workflows/codeql.yml/badge.svg)](https://github.com/hrtahsin/APIWatch/actions/workflows/codeql.yml)
+![Version](https://img.shields.io/badge/version-0.1.0-2563eb)
+![Java](https://img.shields.io/badge/Java-21-0f172a)
+![React](https://img.shields.io/badge/React-19-0f172a)
 
-## Why This Project Exists
+APIWatch is a self-hosted API monitoring and incident-management platform. It schedules HTTP health checks, retains uptime and latency telemetry, detects failures, manages incidents, and delivers notifications through an operational React dashboard.
 
-Operations teams need a fast answer to four questions: what is failing, when it started, whether it is slow or unavailable, and whether it recovered. APIWatch provides that operational view through a Spring Boot REST API and a React dashboard.
+> **Current state — 2 August 2026:** the hardened `0.1.0` core is complete enough for a controlled, single-organization deployment and is a sound foundation for APIWatch Intelligence. The AI layer is designed but **not implemented**. Enterprise identity, tenant isolation, managed orchestration, and production-scale validation remain outside the current release.
 
-## Features
+[Read the audited project status and Intelligence blueprint](docs/project-status-and-blueprint.md) · [Open the editable FigJam architecture board](https://www.figma.com/board/kvyKfGR2HGEp9SJlQT4rW9) · [Use the operations runbook](docs/operations-runbook.md)
 
-- Service registration and configuration through REST endpoints and the dashboard
-- Scheduled and manually triggered GET and HEAD health checks
-- Async scheduled monitoring workers with database leases to avoid duplicate checks
-- `UP`, `SLOW`, `DOWN`, and `UNKNOWN` service states
-- Dedicated `RATE_LIMITED` state with retry metadata and automatic check pauses
-- Failure diagnostics for HTTP, timeout, DNS, connection, and network errors
-- Encrypted Bearer tokens, API keys, and custom request headers
-- Masked credential metadata in API responses and the dashboard
-- Per-service check intervals and pause/resume controls
-- Expected HTTP status ranges and optional response-body validation
-- Independent request timeout, slow-response threshold, and failure threshold
-- Automatic incident creation after consecutive failures
-- Automatic and manual incident resolution
-- Encrypted notification configuration with delivery cooldowns
-- Replica-safe notification claims, idempotency keys, retry backoff, and crash recovery
-- Notifications for incident open and resolution events
-- HTTP Basic application authentication with administrator and viewer roles
-- SSRF protection for monitored URLs and notification webhooks
-- Private-network blocking with an explicit hostname allowlist
-- Uptime, average latency, P95 latency, and failure metrics
-- Paginated service, health-check, and incident history endpoints
-- Configurable retention cleanup for checks, resolved incidents, and notifications
-- PostgreSQL persistence with Flyway migrations
-- Responsive React dashboard with charts and filtering
-- Docker Compose full-stack environment
-- Backend and frontend GitHub Actions workflows
-- Liveness, readiness, authenticated Prometheus metrics, and request correlation IDs
-- Opt-in demo data and local mock endpoints
+## What APIWatch does today
 
-## Tech Stack
-
-| Layer | Technology |
+| Area | Available in `0.1.0` |
 | --- | --- |
-| Backend | Java 21, Spring Boot 3.5, Spring Web, WebClient, Spring Data JPA |
-| Database | PostgreSQL 16, Flyway |
-| Frontend | React 19, TypeScript, Vite, Tailwind CSS, Axios, Recharts |
-| Testing | JUnit 5, Mockito, Spring MockMvc, Testcontainers, ESLint, TypeScript |
-| Delivery | Docker, Docker Compose, GitHub Actions |
+| Monitoring | Scheduled and manual `GET`/`HEAD` checks, expected status ranges, body matching, independent timeout and slow thresholds |
+| Diagnostics | `UP`, `SLOW`, `DOWN`, `RATE_LIMITED`, and `UNKNOWN` states with HTTP, timeout, DNS, connection, network, validation, and security-blocked failure detail |
+| Incidents | Configurable consecutive-failure thresholds, one active incident per service, automatic recovery, and manual resolution |
+| Notifications | Webhook, Slack, Discord, email, PagerDuty, and Opsgenie; cooldown, escalation, durable outbox, claims, idempotency, retry/backoff, and manual retry |
+| Security | Database-backed Basic authentication, `ADMIN`/`VIEWER` authorization, BCrypt, encrypted secrets, SSRF controls, audit logs, and production fail-fast validation |
+| Dashboard | Responsive operations UI, role-aware navigation, service and incident workflows, metrics charts, loading/empty/error states, validation, toasts, and accessible dialogs |
+| Operations | PostgreSQL/Flyway, retention, liveness/readiness, Prometheus metrics, request IDs, hardened containers, backup/restore scripts, and immutable image releases |
+| Quality | Backend unit/integration/PostgreSQL concurrency tests, frontend unit tests, Chromium journeys, accessibility checks, dependency review, CodeQL, SBOM, and provenance |
 
 ## Architecture
 
+APIWatch is a modular monolith: one Spring Boot deployable contains the REST API, monitoring scheduler, incident engine, retention job, and notification workers. PostgreSQL is the durable coordination boundary. The React application is served by Nginx, which proxies same-origin `/api` traffic to the backend.
+
 ```mermaid
-flowchart TD
-    A[React Dashboard] --> B[Spring Boot REST API]
-    B --> C[(PostgreSQL)]
-    B --> D[Configurable Scheduler]
-    D --> E[Health Check Runner]
-    E --> F[External APIs and Internal Services]
-    E --> C
-    E --> G[Incident Detection Engine]
-    G --> C
+flowchart LR
+    browser[Operator or viewer browser] -->|HTTPS| nginx[Nginx: React SPA and /api proxy]
+    nginx -->|/api| backend[Spring Boot API and workers]
+    ops[Prometheus or operations client] -->|/actuator or admin API| backend
+    backend -->|JPA and Flyway| postgres[(PostgreSQL 16)]
+    backend -.->|SSRF-validated checks| targets[Monitored APIs]
+    backend -.->|Incident events| providers[Notification providers]
 ```
 
-## Repository Layout
+The scheduler acquires a database lease before dispatching a due service to its bounded worker pool. Check results are written before incident evaluation. Incident events enter a database outbox; notification workers atomically claim deliveries before contacting a provider. This supports multiple backend replicas without duplicate scheduled work or duplicate active incidents.
 
-```text
-apiwatch-backend/   Spring Boot API, scheduler, migrations, and tests
-apiwatch-frontend/  React dashboard
-.github/workflows/  Backend and frontend CI
-docker-compose.yml  PostgreSQL, backend, and frontend
-docs/operations-runbook.md  Deployment, backup, restore, and rollback
-```
+The [project status and blueprint](docs/project-status-and-blueprint.md) is the authoritative written reference for the verified data model, trust boundaries, current limitations, and proposed Intelligence integration. The [FigJam board](https://www.figma.com/board/kvyKfGR2HGEp9SJlQT4rW9) provides editable visual versions of the verified runtime and monitoring/incident flow.
 
-## Quick Start With Docker
+## Technology
+
+| Layer | Technology |
+| --- | --- |
+| Backend | Java 21, Spring Boot 3.5.16, Spring MVC, WebClient, Spring Data JPA, Spring Security |
+| Data | PostgreSQL 16, Flyway migrations v1–v11 |
+| Frontend | React 19, TypeScript 5.9, React Router 7, Vite 6, Tailwind CSS 4, Recharts |
+| Observability | Spring Boot Actuator, Micrometer, Prometheus |
+| Testing | JUnit 5, Mockito, MockMvc, Testcontainers, Vitest, Testing Library, Playwright, axe-core |
+| Delivery | Docker, Docker Compose, GitHub Actions, GHCR, CodeQL, Dependabot |
+
+## Quick start
 
 Requirements: Docker with Compose support.
 
@@ -80,145 +63,88 @@ cp .env.example .env
 docker compose up --build
 ```
 
-`APIWATCH_ENCRYPTION_KEY` must be a Base64-encoded 32-byte key. The example
-contains a development-only value; replace it before deploying APIWatch.
-
-Generate a production key with:
-
-```bash
-openssl rand -base64 32
-```
-
 Open:
 
 - Dashboard: `http://localhost:5173`
-- REST API: `http://localhost:8080/api`
-- OpenAPI UI (administrator only): `http://localhost:8080/swagger-ui.html`
-- Healthy mock: `http://localhost:8080/api/mock/healthy`
+- API: `http://localhost:8080/api`
+- OpenAPI UI, administrator only: `http://localhost:8080/swagger-ui.html`
+- Readiness: `http://localhost:8080/actuator/health/readiness`
 
-Sign in with the administrator or viewer credentials configured in `.env`.
-Replace both example passwords before exposing APIWatch outside local development.
-On startup, APIWatch stores these bootstrap users in the database with BCrypt
-password hashes. Updating the environment values updates the bootstrap users on
-the next application start.
+Sign in with the administrator or viewer credentials configured in `.env`. The local example enables demo data and includes development-only secrets. Never deploy those values.
 
-Compose enables demo seeding by default. It registers healthy, slow, failing, GitHub, and JSONPlaceholder services. The scheduler starts checking them after 15 seconds.
+The default ports bind to `127.0.0.1`. Keep this setting and place a TLS reverse proxy in front of APIWatch for a deployed instance.
 
-The Compose ports bind to `127.0.0.1` by default. This keeps PostgreSQL and the
-unencrypted HTTP endpoints off external network interfaces. Use a local TLS
-reverse proxy for deployed instances; only change `APIWATCH_BIND_ADDRESS` when
-the surrounding network controls are intentional.
+Stop the stack with `docker compose down`. `docker compose down -v` also deletes the PostgreSQL volume and all monitoring history.
 
-Scheduled checks are dispatched to a bounded worker pool. Tune
-`APIWATCH_SCHEDULER_WORKER_POOL_SIZE`, `APIWATCH_SCHEDULER_QUEUE_CAPACITY`,
-`APIWATCH_SCHEDULER_LEASE_SECONDS`, and optional
-`APIWATCH_SCHEDULER_INSTANCE_ID` when running larger service inventories or
-multiple backend replicas.
+## Production configuration
 
-Stop the stack:
+Start from the deployment template:
 
 ```bash
-docker compose down
+cp .env.production.example .env
+openssl rand -base64 32
 ```
 
-Remove containers and PostgreSQL data:
+Replace every placeholder, select matching immutable backend/frontend `sha-*` image tags, and enable the production profile. The production validator refuses to start with malformed or known development encryption keys, unsafe bootstrap credentials, shared identities, non-HTTPS origins, demo endpoints, or localhost CORS.
 
-```bash
-docker compose down -v
-```
+Keep these production invariants:
 
-## Local Development
+- Terminate HTTPS before APIWatch; Basic credentials accompany every request.
+- Keep `APIWATCH_BLOCK_PRIVATE_TARGETS=true`; explicitly allow only required internal hostnames.
+- Keep `APIWATCH_DEMO_DATA_ENABLED=false` and `APIWATCH_ALLOW_LOCALHOST_CORS=false`.
+- Store `.env` with restricted permissions and manage encryption-key rotation as a maintenance operation.
+- Deploy backend and frontend from the same immutable commit tag.
+- Back up PostgreSQL before upgrades and rehearse restoration away from production.
 
-Start only PostgreSQL:
+See [docs/operations-runbook.md](docs/operations-runbook.md) for deployment, upgrade, backup, restore, rollback, and incident checks.
 
-```bash
-docker compose up -d postgres
-```
+## Authentication and authorization
 
-Run the backend:
+APIWatch bootstraps one administrator and one viewer into PostgreSQL and stores their passwords with BCrypt.
 
-```bash
-cd apiwatch-backend
-mvn spring-boot:run
-```
+| Role | Permissions |
+| --- | --- |
+| `VIEWER` | Read services, checks, metrics, incidents, dashboard state, and masked notification settings |
+| `ADMIN` | Viewer permissions plus service mutations, manual checks, incident resolution, notification changes/retries, audit logs, OpenAPI, and Prometheus |
 
-Fast backend tests use H2:
+`GET /api/auth/me` returns the current identity and role. APIWatch `0.1.0` does not include OIDC/SSO, user-management screens, or tenant isolation.
 
-```bash
-cd apiwatch-backend
-mvn test
-```
+## Monitoring behavior
 
-The authoritative PostgreSQL integration suite applies every Flyway migration
-to a disposable PostgreSQL 16 Testcontainer and requires a running Docker
-daemon:
+1. The scheduler finds due active services and acquires a PostgreSQL lease.
+2. A bounded worker validates the target against the SSRF policy and sends `GET` or `HEAD` with redirects disabled.
+3. APIWatch records status, latency, rate-limit metadata, and bounded failure diagnostics.
+4. `429`, or `403` with exhausted rate-limit metadata, becomes `RATE_LIMITED` and pauses checks until the provider permits a retry.
+5. The configured number of consecutive `DOWN` checks opens one active incident.
+6. A later `UP` check resolves that incident and records its duration.
+7. Open/resolved events enter the notification outbox and are delivered under cooldown, escalation, claim, idempotency, and retry rules.
 
-```bash
-cd apiwatch-backend
-mvn verify -Ppostgres-it
-```
+Response-body validation is available for `GET` and capped at 64 KiB. Credentials and custom headers are encrypted at rest, masked in API responses, and revalidated immediately before outbound requests.
 
-GitHub Actions runs both suites on every pull request.
+## API surface
 
-## Operational Observability
+The administrator-protected OpenAPI contract at `/v3/api-docs` is the authoritative machine-readable reference.
 
-APIWatch exposes non-sensitive health probes without authentication:
+| Method | Endpoint | Purpose |
+| --- | --- | --- |
+| `GET` | `/api/auth/me` | Current identity and role |
+| `GET` | `/api/dashboard/summary` | Platform health and latency summary |
+| `GET`, `POST` | `/api/services` | Search/list or register monitored services |
+| `GET`, `PUT`, `DELETE` | `/api/services/{id}` | Read, replace, or delete a service |
+| `PATCH` | `/api/services/{id}/active` | Pause or resume scheduled checks |
+| `POST` | `/api/services/{id}/check` | Trigger a check immediately |
+| `GET` | `/api/services/{id}/health-checks` | Paginated check history |
+| `GET` | `/api/services/{id}/metrics?windowHours=24` | Uptime and latency metrics |
+| `GET` | `/api/incidents` and `/api/incidents/{id}` | Search/list or read incidents |
+| `PATCH` | `/api/incidents/{id}/resolve` | Resolve an active incident |
+| `GET`, `PUT` | `/api/notification-settings` | Read masked or update notification settings |
+| `GET` | `/api/notification-settings/deliveries` | Review delivery outcomes |
+| `POST` | `/api/notification-settings/deliveries/{id}/retry` | Requeue a failed delivery |
+| `GET` | `/api/audit-logs` | Read administrator mutation history |
 
-- `GET /actuator/health/liveness` reports whether the backend process can run.
-- `GET /actuator/health/readiness` reports whether the backend and database are
-  ready to receive traffic.
+Paged endpoints return `content`, `page`, `size`, `totalElements`, and `totalPages`. Pages are zero-based and page size is capped at 100.
 
-Prometheus metrics require administrator authentication:
-
-```bash
-curl -u "$APIWATCH_ADMIN_USERNAME:$APIWATCH_ADMIN_PASSWORD" \
-  http://localhost:8080/actuator/prometheus
-```
-
-The metrics include HTTP server telemetry plus bounded-cardinality APIWatch
-signals for health-check outcomes and duration, scheduler dispatch outcomes,
-active services, unresolved incidents, and pending, processing, or failed
-notification deliveries. Set `APIWATCH_PROMETHEUS_ENABLED=false` to disable the
-Prometheus exporter.
-
-Every HTTP response includes `X-Request-Id`. APIWatch accepts a caller-provided
-identifier containing up to 128 letters, numbers, dots, underscores, or hyphens;
-otherwise it generates a UUID. The same identifier is attached to backend log
-entries produced while the request is handled.
-
-Compose health checks use the readiness probe for the backend and start the
-frontend only after the backend is healthy. `docker compose ps` reports the
-health of all three services.
-
-Run the frontend in another terminal:
-
-```bash
-cd apiwatch-frontend
-npm install
-npm run dev
-```
-
-For a frontend-only preview, create `apiwatch-frontend/.env.local`:
-
-```env
-VITE_DEMO_MODE=true
-```
-
-## API Examples
-
-The machine-readable OpenAPI contract and interactive documentation require
-administrator credentials:
-
-```bash
-curl -u "$APIWATCH_ADMIN_USERNAME:$APIWATCH_ADMIN_PASSWORD" \
-  http://localhost:8080/v3/api-docs
-```
-
-Set `APIWATCH_API_VERSION` to the deployed product version. Set
-`APIWATCH_OPENAPI_ENABLED=false` to remove both the contract endpoint and
-Swagger UI when documentation is published through another controlled channel.
-
-Register a service:
+Example service registration:
 
 ```bash
 curl -X POST http://localhost:8080/api/services \
@@ -227,182 +153,73 @@ curl -X POST http://localhost:8080/api/services \
   -d '{
     "name": "Payment Service",
     "url": "https://example.com/health",
-    "ownerName": "Finance Ops",
-    "teamName": "Platform",
-    "tags": ["payments", "critical"],
     "method": "GET",
     "expectedStatusMin": 200,
     "expectedStatusMax": 299,
     "timeoutMs": 2000,
     "slowThresholdMs": 1200,
     "checkIntervalSeconds": 60,
-    "responseBodyContains": "\"status\":\"ok\"",
     "failureThreshold": 3,
-    "active": true,
-    "authType": "BEARER",
-    "authValue": "replace-with-a-token",
-    "customHeaders": {
-      "X-Tenant-ID": "customer-7"
-    }
+    "active": true
   }'
 ```
 
-Credential values are encrypted at rest and are never included in service
-responses. On update, omit the values to keep existing credentials, provide new
-values to replace them, or set `clearAuthSecret` to `true` to remove stored
-authentication.
+## Observability and retention
 
-Useful endpoints:
+Unauthenticated probes:
 
-| Method | Endpoint | Purpose |
-| --- | --- | --- |
-| `POST` | `/api/services` | Register a service |
-| `GET` | `/api/auth/me` | Return the authenticated user and role |
-| `GET` | `/api/services?page=0&size=20&query=payments&active=true&sort=team&direction=asc` | List, search, filter, and sort services with current state |
-| `PUT` | `/api/services/{id}` | Update monitoring configuration |
-| `PATCH` | `/api/services/{id}/active` | Pause or resume scheduled checks |
-| `DELETE` | `/api/services/{id}` | Delete a service and its history |
-| `POST` | `/api/services/{id}/check` | Trigger a health check |
-| `GET` | `/api/services/{id}/health-checks?page=0&size=20` | Get recent checks |
-| `GET` | `/api/services/{id}/metrics?windowHours=24` | Get service metrics |
-| `GET` | `/api/incidents?status=ACTIVE&page=0&size=20` | List or filter incidents |
-| `PATCH` | `/api/incidents/{id}/resolve` | Resolve an incident |
-| `GET` | `/api/notification-settings` | Get masked webhook configuration |
-| `PUT` | `/api/notification-settings` | Configure webhook delivery and cooldown |
-| `GET` | `/api/notification-settings/deliveries` | Review recent delivery attempts |
-| `POST` | `/api/notification-settings/deliveries/{id}/retry` | Requeue a failed delivery |
-| `GET` | `/api/audit-logs?page=0&size=20` | Review admin audit events |
-| `GET` | `/api/dashboard/summary` | Get platform summary metrics |
+- `/actuator/health/liveness`
+- `/actuator/health/readiness`
 
-## Data Model
+Administrator-protected `/actuator/prometheus` includes HTTP telemetry and bounded-cardinality counters, gauges, and timers for monitoring outcomes, scheduler dispatch, service state, incidents, and notification deliveries.
 
-- `services`: endpoint configuration and failure policy
-- `health_checks`: immutable check result history
-- `incidents`: active and resolved outage records
-- `app_users`: BCrypt-hashed admin and viewer accounts
-- `audit_logs`: admin mutation history for service, incident, and notification changes
+Every response carries `X-Request-Id`; valid caller-provided identifiers are propagated into backend logs. History cleanup runs daily by default and has independent retention windows for checks, resolved incidents, and notification deliveries.
 
-Indexes support recent health-check lookups, incident filtering, and lease
-expiry scans. A partial unique index prevents duplicate active incidents for the
-same service.
+## Development and verification
 
-Paged endpoints return `content`, `page`, `size`, `totalElements`, and
-`totalPages`. Page indexes start at zero and page size is capped at 100.
-
-History cleanup runs daily at 02:30 by default. Configure
-`APIWATCH_RETENTION_HEALTH_CHECK_DAYS`, `APIWATCH_RETENTION_INCIDENT_DAYS`,
-`APIWATCH_RETENTION_NOTIFICATION_DAYS`, and `APIWATCH_RETENTION_CRON`, or set
-`APIWATCH_RETENTION_ENABLED=false` to disable cleanup.
-
-## Incident Rules
-
-1. Every completed request is stored as a health check.
-2. A request that exceeds the configured request timeout is `DOWN`.
-3. A status inside the configured range and within the slow-response threshold is `UP`.
-4. A matching status beyond the slow-response threshold is `SLOW`.
-5. Network errors, timeouts, unexpected statuses, and body validation failures are `DOWN`.
-6. HTTP `429`, or `403` with an exhausted rate-limit header, is `RATE_LIMITED`.
-7. Rate-limited services pause until `Retry-After` or provider reset metadata allows a retry.
-8. The configured number of consecutive `DOWN` checks creates one active incident.
-9. A later `UP` check resolves the active incident and records its duration.
-10. Enabled notification providers receive incident open and resolution events.
-11. Repeated events for the same service are suppressed during the configured cooldown.
-
-Response-body validation is available for GET checks and is capped at 64 KiB.
-HEAD checks validate status and latency only.
-
-Webhook URLs are encrypted with `APIWATCH_ENCRYPTION_KEY` and never returned by
-the API. Delivery attempts record success, failure, HTTP status, and cooldown
-suppression for operational review.
-
-Notification workers atomically claim pending deliveries before contacting a
-provider. Expired claims are recovered automatically after a worker restart.
-Retryable timeouts, rate limits, and server errors use bounded exponential
-backoff with jitter, while permanent client errors fail immediately. Configure
-`APIWATCH_NOTIFICATIONS_CLAIM_SECONDS` and an optional stable
-`APIWATCH_NOTIFICATIONS_INSTANCE_ID` when running multiple backend replicas.
-
-## Security
-
-All `/api` endpoints require HTTP Basic authentication except local mock
-endpoints. `VIEWER` accounts can read monitoring data. `ADMIN` accounts can
-create, edit, delete, check, pause, resolve, and configure notifications.
-Deploy behind HTTPS because Basic credentials accompany every API request.
-
-For a deployed instance, enable the fail-fast production profile:
-
-```env
-SPRING_PROFILES_ACTIVE=production
-APIWATCH_FRONTEND_ORIGIN=https://apiwatch.example.com
-APIWATCH_DEMO_DATA_ENABLED=false
-APIWATCH_ALLOW_LOCALHOST_CORS=false
-```
-
-The production profile refuses to start with the documented development
-encryption key, malformed encryption keys, placeholder or short bootstrap
-passwords, shared administrator/viewer identities, a non-HTTPS frontend origin,
-demo endpoints, or wildcard localhost CORS. Set distinct passwords of at least
-12 characters and generate `APIWATCH_ENCRYPTION_KEY` with
-`openssl rand -base64 32`.
-
-The backend and frontend emit restrictive browser security headers. The
-frontend container and backend container run without root privileges or Linux
-capabilities, use a read-only filesystem, and enable the no-new-privileges
-runtime control.
-
-Outbound monitored URLs and webhooks are checked when saved and immediately
-before use. Loopback, private, link-local, multicast, carrier-grade NAT, and
-other internal addresses are blocked. Keep `APIWATCH_BLOCK_PRIVATE_TARGETS=true`
-in production. Add required internal hostnames to
-`APIWATCH_PRIVATE_TARGET_ALLOWLIST` as a comma-separated exact or `*.domain`
-allowlist. Redirect following is disabled to prevent redirect-based SSRF.
-
-## Testing
+For a local split-stack workflow, start PostgreSQL with `docker compose up -d postgres`, run the backend from `apiwatch-backend` with `mvn spring-boot:run`, and run the frontend from `apiwatch-frontend` with `npm install && npm run dev`. The frontend development server targets the local API; `VITE_DEMO_MODE=true` enables its isolated demo adapter for UI-only work.
 
 Backend:
 
 ```bash
 cd apiwatch-backend
 mvn test
+mvn verify -Ppostgres-it
 ```
+
+The PostgreSQL profile applies all 11 Flyway migrations to a PostgreSQL 16 Testcontainer and exercises schema constraints, repositories, leases, and notification claims.
 
 Frontend:
 
 ```bash
 cd apiwatch-frontend
-npm test
+npm ci
 npm run lint
+npm test
 npm run build
 npx playwright install chromium
 npm run test:e2e
 ```
 
-The Playwright acceptance suite starts the frontend in isolated demo mode. It
-checks administrator navigation, viewer route enforcement, mutation feedback,
-destructive-action safeguards, field validation, mobile navigation and table
-layouts, and WCAG A/AA serious-or-critical violations across the core
-operational and configuration screens.
+At the audited snapshot, all quality gates pass: **85 backend tests, 9 frontend unit tests, and 6 browser acceptance tests** (100 total), plus the production frontend build and Compose configuration validation.
 
-## CI/CD
+CI runs release-version verification, the PostgreSQL integration suite, dependency review, npm audit policy, lint, unit tests, Chromium acceptance/accessibility checks, CodeQL, and Docker builds. Successful non-PR builds publish GHCR images with SBOM and provenance; releases are governed by `VERSION` and `v<VERSION>` tags.
 
-The GitHub Actions pipeline in `.github/workflows/ci-cd.yml` runs on pull requests,
-pushes to `main`, and version tags such as `v1.0.0`.
+## Repository map
 
-Pipeline jobs:
+```text
+apiwatch-backend/                 Spring Boot API, workers, migrations, tests
+apiwatch-frontend/                React dashboard, Nginx proxy, tests
+docs/operations-runbook.md        Deployment and recovery procedures
+docs/project-status-and-blueprint.md  Audited status and Intelligence plan
+scripts/                          Release, backup, restore, and audit helpers
+.github/workflows/                CI/CD and CodeQL
+docker-compose.yml                PostgreSQL, backend, frontend
+VERSION                           Canonical product version
+```
 
-- Backend: sets up Java 21 and runs `mvn -B clean verify`
-- Dependency review: blocks newly introduced high-severity vulnerabilities
-- Frontend: audits all dependencies, then runs lint, tests, and build
-- Browser acceptance: runs Chromium user journeys and accessibility checks
-- Docker: builds images with SBOM and provenance after tests pass
-- CD: publishes branch, immutable commit, and semantic-version image tags
-- CodeQL: analyzes Java, JavaScript, and TypeScript on pull requests, `main`,
-  and a weekly schedule
+## Scope and next step
 
-Published image names:
+APIWatch `0.1.0` is deliberately a hardened monitoring core, not yet a general enterprise SaaS platform. It does not currently provide multi-tenancy, OIDC/SSO, synthetic browser or multi-step probes, an external message broker, SLO/error-budget management, managed Kubernetes/cloud infrastructure, or AI-generated insights.
 
-- `ghcr.io/<owner>/apiwatch-backend`
-- `ghcr.io/<owner>/apiwatch-frontend`
-
-See [the operations runbook](docs/operations-runbook.md) for immutable-image
-deployment, verified backups, destructive-restore safeguards, and rollback.
+The recommended next product track is APIWatch Intelligence behind an asynchronous, evidence-preserving boundary. It should consume versioned monitoring data and produce explainable insights without placing model calls in the health-check or incident-creation path. The staged plan and entry criteria are in [docs/project-status-and-blueprint.md](docs/project-status-and-blueprint.md).
