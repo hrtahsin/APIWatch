@@ -58,6 +58,13 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    groups:
+      codeql-actions:
+        patterns:
+          - "github/codeql-action/*"
+        update-types:
+          - minor
+          - patch
     ignore:
       - dependency-name: "*"
         update-types:
